@@ -5,7 +5,9 @@
         id="menu_eosone_root"
         name="EOS One"
         sequence="30"
-        groups="base.group_user"
+        groups="EOS_ONE.group_eosone_user"
+        action="action_eos_meetings"
+        web_icon="EOS_ONE,static/description/icon.svg"
     />
 
     <menuitem

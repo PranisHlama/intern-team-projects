@@ -6,6 +6,7 @@
     'description': 'EOS management and accountability system',
     'author': 'Custom Development',
     'license': 'LGPL-3',
+    'icon': '/EOS_ONE/static/description/icon.svg',
 
     'depends': [
         'base',
@@ -15,8 +16,7 @@
 
     'data': [
         'security/eosone_groups.xml',
-        'security/ir.model.access.csv',
-        'security/eosone_rules.xml',
+        'security/ir.access.csv',
 
         'data/eosone_sequence.xml',
 

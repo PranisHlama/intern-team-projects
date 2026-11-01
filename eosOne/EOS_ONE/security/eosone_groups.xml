@@ -13,6 +13,7 @@
 
     <record id="group_eosone_admin" model="res.groups">
         <field name="name">EOS Administrator</field>
+        <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
         <field name="implied_ids"
                eval="[(4, ref('group_eosone_user'))]"/>
     </record>

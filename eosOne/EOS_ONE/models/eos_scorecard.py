@@ -86,13 +86,10 @@ class EosMeasurableEntry(models.Model):
                     'on' if record.value >= record.goal else 'off'
                 )
 
-    _sql_constraints = [
-        (
-            'unique_weekly_entry',
-            'unique(measurable_id, week_date)',
-            'Only one entry is allowed per measurable per week.'
-        )
-    ]
+    _unique_weekly_entry = models.Constraint(
+        'UNIQUE(measurable_id, week_date)',
+        'Only one entry is allowed per measurable per week.',
+    )
 
     def action_create_issue(self):
         self.ensure_one()

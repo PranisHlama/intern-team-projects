@@ -1,0 +1,10 @@
+id,name,model_id,group_id/id,operation,domain
+access_eos_team,eos.team,eos.team,group_eosone_user,cru,"[('member_ids', 'in', [user.id])]"
+access_eos_meeting,eos.meeting,eos.meeting,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
+access_eos_section,eos.meeting.section,eos.meeting.section,group_eosone_user,crud,"[('meeting_id.team_id.member_ids', 'in', [user.id])]"
+access_eos_measurable,eos.measurable,eos.measurable,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
+access_eos_entry,eos.measurable.entry,eos.measurable.entry,group_eosone_user,crud,"[('measurable_id.team_id.member_ids', 'in', [user.id])]"
+access_eos_rock,eos.rock,eos.rock,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
+access_eos_issue,eos.issue,eos.issue,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
+access_eos_todo,eos.todo,eos.todo,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
+access_eos_headline,eos.headline,eos.headline,group_eosone_user,crud,"[('team_id.member_ids', 'in', [user.id])]"
