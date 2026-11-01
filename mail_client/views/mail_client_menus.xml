@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_mail_client" model="ir.actions.client">
+        <field name="name">Mail Client</field><field name="tag">mail_client.client</field>
+    </record>
+    <menuitem id="menu_mail_client_root" name="Mail Client" sequence="25" groups="group_mail_client_user"/>
+    <menuitem id="menu_mail_client_inbox" name="Inbox" parent="menu_mail_client_root" action="action_mail_client" sequence="10"/>
+    <menuitem id="menu_mail_client_accounts" name="Account Setups" parent="menu_mail_client_root" action="action_mail_accounts" sequence="20"/>
+</odoo>

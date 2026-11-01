@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+<t t-name="mail_client.Client">
+    <main class="mmc">
+        <div t-if="this.state.demo" class="mmc-mode-note" role="status">Sample mode: fictional data, drafts in memory and simulated sending.</div>
+        <div t-if="this.state.error" class="mmc-alert mmc-error" role="alert"><span t-out="this.state.error"/><button class="mmc-link" t-on-click="() => this.state.error = ''">Dismiss</button></div>
+        <div t-if="this.state.notice" class="mmc-alert" role="status"><span t-out="this.state.notice"/><button class="mmc-link" t-on-click="() => this.state.notice = ''">Dismiss</button></div>
+        <div class="mmc-workspace">
+            <aside class="mmc-sidebar" aria-label="Mail navigation">
+                <button type="button" class="mmc-button mmc-compose" t-att-disabled="!this.canCompose or this.state.liveBusy" t-on-click="() => this.compose()"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg> Compose</button>
+                <button type="button" t-att-class="'mmc-nav ' + (this.state.accountId === 'all' and this.state.folder === 'inbox' ? 'is-active' : '')" aria-label="All Inbox" t-on-click="() => this.changeView('all')"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M4 4h16l2 10v6H2v-6zM2 14h6l2 3h4l2-3h6"/></svg><span>All Inbox</span><small class="mmc-count" t-if="this.unreadCount('all')" t-out="this.unreadCount('all')"/></button>
+                <button t-if="this.hasDraftAccounts" type="button" t-att-class="'mmc-nav ' + (this.state.accountId === 'all' and this.state.folder === 'drafts' ? 'is-active' : '')" t-on-click="() => this.changeView('all', 'drafts')"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6"/></svg><span>Drafts</span></button>
+                <section class="mmc-nav-section" aria-label="Mailboxes">
+                    <button type="button" class="mmc-section-toggle" aria-controls="mmc-mailboxes" t-att-aria-expanded="this.state.mailboxesExpanded ? 'true' : 'false'" t-on-click="() => this.toggleMailboxes()"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 6l9 7 9-7"/></svg><span>Mailboxes</span><svg t-att-class="'mmc-icon mmc-chevron ' + (this.state.mailboxesExpanded ? 'is-expanded' : '')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+                    <div id="mmc-mailboxes" t-att-hidden="!this.state.mailboxesExpanded">
+                        <div t-foreach="this.accounts" t-as="account" t-key="account.id" class="mmc-account-group">
+                            <div class="mmc-mailbox-entry">
+                            <button type="button" class="mmc-mailbox-toggle" t-att-aria-controls="'mmc-folders-' + account.id" t-att-aria-expanded="this.mailboxExpanded(account.id) ? 'true' : 'false'" t-on-click="() => this.toggleMailbox(account.id)"><svg t-att-class="'mmc-icon mmc-chevron ' + (this.mailboxExpanded(account.id) ? 'is-expanded' : '')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg><span t-out="account.name"/></button>
+                            </div>
+                            <div t-att-id="'mmc-folders-' + account.id" t-att-hidden="!this.mailboxExpanded(account.id)">
+                                <button type="button" t-att-aria-label="account.name + ' Inbox'" t-att-class="'mmc-nav mmc-folder ' + (this.state.accountId === account.id and this.state.folder === 'inbox' ? 'is-active' : '')" t-on-click="() => this.changeView(account.id)"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M4 4h16l2 10v6H2v-6zM2 14h6l2 3h4l2-3h6"/></svg><span>Inbox</span><small class="mmc-count" t-if="this.unreadCount(account.id)" t-out="this.unreadCount(account.id)"/></button>
+                                <button t-if="!this.state.demo and this.supports(account, 'sent')" type="button" t-att-aria-label="account.name + ' Sent'" t-att-class="'mmc-nav mmc-folder ' + (this.state.accountId === account.id and this.state.folder === 'sent' ? 'is-active' : '')" t-on-click="() => this.changeView(account.id, 'sent')"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M22 2L9 15M22 2l-7 20-6-7-7-6z"/></svg><span>Sent</span></button>
+                                <button t-if="this.supports(account, 'drafts')" type="button" t-att-aria-label="account.name + ' Drafts'" t-att-class="'mmc-nav mmc-folder ' + (this.state.accountId === account.id and this.state.folder === 'drafts' ? 'is-active' : '')" t-on-click="() => this.changeView(account.id, 'drafts')"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6"/></svg><span>Drafts</span></button>
+                            </div>
+                        </div>
+                        <p t-if="!this.accounts.length" class="mmc-muted mmc-sidebar-note">No mailboxes yet.</p>
+                    </div>
+                </section>
+                
+            </aside>
+            <section class="mmc-mail-area" aria-label="Mailbox">
+                <div t-if="this.disconnectedInboxNames" class="mmc-mailbox-warning" role="status"><span t-out="this.disconnectedInboxNames + ': not connected. Connect through Account Setups in the top menu.'"/></div>
+                <div t-foreach="this.state.mailboxFailures" t-as="failure" t-key="failure.accountId" class="mmc-mailbox-warning" role="alert"><strong t-out="failure.name + ': '"/><span t-out="failure.message"/><span> Other available mailboxes remain visible.</span></div>
+                <section t-if="!this.state.selected" class="mmc-list" aria-label="Message list">
+                    <div class="mmc-list-heading"><h2 t-out="this.heading"/><button t-if="this.state.folder === 'inbox' and this.canFilterUnread" type="button" t-att-class="'mmc-filter ' + (this.state.unread ? 'is-active' : '')" t-att-disabled="this.state.liveBusy" t-att-aria-pressed="this.state.unread ? 'true' : 'false'" t-on-click="() => this.toggleUnread()">Unread</button><div t-if="this.canSearch" class="mmc-search"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><circle cx="10.5" cy="10.5" r="6.5"/><path d="M16 16l5 5"/></svg><input type="search" aria-label="Search messages" placeholder="Search mail" t-att-value="this.state.query" t-on-input="(ev) => this.search(ev.target.value)"/></div></div>
+                    <div class="mmc-pager"><span t-if="this.state.liveBusy" class="mmc-muted" role="status">Fetching…</span><span t-if="this.state.demo" class="mmc-muted">Sample messages</span><button t-if="!this.state.demo" type="button" class="mmc-link" t-att-disabled="this.state.liveBusy" t-on-click="() => this.reloadAccounts()"><svg class="mmc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ><path d="M20 7V3l-3 3a8 8 0 1 0 3 10M20 3h-4"/></svg><span>Refresh mail</span></button><div><span t-out="this.rangeLabel"/><button type="button" class="mmc-icon-button" aria-label="Previous" t-att-disabled="this.previousDisabled or this.state.liveBusy" t-on-click="() => this.paginate(-1)">‹</button><button type="button" class="mmc-icon-button" aria-label="Next" t-att-disabled="this.nextDisabled or this.state.liveBusy" t-on-click="() => this.paginate(1)">›</button></div></div>
+                    <div class="mmc-rows">
+                        <t t-foreach="this.state.rows" t-as="row" t-key="row.accountId + ':' + row.id">
+                            <button type="button" t-att-class="'mmc-row ' + (this.state.folder === 'inbox' and !row.isRead ? 'is-unread' : '')" t-on-click="() => this.openRow(row)">
+                                <span t-att-class="'mmc-read-dot ' + (this.state.folder === 'inbox' and !row.isRead ? 'is-unread' : '')" aria-hidden="true"/>
+                                <span class="mmc-sender" t-out="this.state.folder === 'drafts' ? (row.to || 'No recipient') : row.senderName"/>
+                                <span class="mmc-row-content"><span class="mmc-subject" t-out="row.subject || '(No subject)'"/></span>
+                                <span class="mmc-row-account" t-out="this.accountName(row.accountId)"/>
+                                <time t-out="this.formatDate(row.date)"/>
+                            </button>
+                        </t>
+                        <div t-if="!this.state.rows.length" class="mmc-empty">
+                            <span class="mmc-envelope" aria-hidden="true">✉</span>
+                            <t t-if="this.state.demo"><h3>No messages here</h3><p>Try another filter or create a sample draft.</p></t>
+                            <t t-else=""><h3 t-out="this.state.liveBusy ? 'Fetching messages…' : 'No messages to show'"/><p>Connect through Account Setups in the top menu, or refresh this view. A connected folder can also be empty.</p></t>
+                        </div>
+                    </div>
+                </section>
+                <section t-else="" class="mmc-reader" aria-label="Message reader">
+                    <div class="mmc-reader-toolbar"><button type="button" class="mmc-button" t-on-click="() => this.backToInbox()">← Back to inbox</button><button t-if="this.supports(this.selectedAccount, 'read_state')" type="button" class="mmc-link" t-on-click="() => this.markUnread()">Mark unread</button><span class="mmc-chip" t-out="this.accountName(this.state.selected.accountId) + (this.state.demo ? ' sample' : '')"/></div>
+                    <h2 class="mmc-message-subject" t-out="this.state.selected.subject"/>
+                    <article class="mmc-message-card">
+                        <div class="mmc-message-meta"><span class="mmc-avatar" aria-hidden="true" t-out="this.state.selected.senderName.slice(0, 1)"/><div><strong t-out="'From: ' + this.state.selected.senderName"/><span t-if="this.state.selected.sender !== this.state.selected.senderName" class="mmc-sender-address" t-out="this.state.selected.sender"/><small t-out="'To: ' + (this.state.selected.to || '(not provided in message headers)')"/></div><time t-out="this.formatDate(this.state.selected.date)"/></div>
+                        <div t-if="this.state.selected.hasExternalImages" class="mmc-image-notice" role="status">
+                            <span t-out="this.state.selected.externalImagesLoaded ? 'External images loaded for this message.' : 'External images are blocked. Loading them contacts the sender’s image servers.'"/>
+                            <button type="button" class="mmc-button" t-on-click="() => this.toggleExternalImages()" t-out="this.state.selected.externalImagesLoaded ? 'Block external images' : 'Load external images'"/>
+                        </div>
+                        <iframe t-if="this.state.selected.bodyDocument" class="mmc-formatted-body" title="Email content" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" t-att-srcdoc="this.state.selected.externalImagesLoaded ? this.state.selected.bodyDocumentExternal : this.state.selected.bodyDocument"/>
+                        <div t-else="" class="mmc-message-body" t-out="this.state.selected.body"/>
+                        <button t-if="this.supports(this.selectedAccount, 'reply')" type="button" class="mmc-button" t-on-click="() => this.compose(true)">Reply</button>
+                    </article>
+                </section>
+            </section>
+        </div>
+        <div t-if="this.state.composer" class="mmc-compose-overlay" t-on-keydown="(ev) => this.composerKeydown(ev)">
+            <section t-att-class="'mmc-compose-window ' + (this.state.composerExpanded ? 'is-expanded' : '')" role="dialog" aria-modal="true" aria-labelledby="mmc-compose-title">
+                <div class="mmc-compose-titlebar"><h2 id="mmc-compose-title" t-out="this.state.composer.replyToId ? 'Reply' : 'New message'"/><div><button type="button" class="mmc-title-button" t-att-aria-label="this.state.composerExpanded ? 'Restore compose window' : 'Expand compose window'" t-on-click="() => this.state.composerExpanded = !this.state.composerExpanded">⤢</button><button type="button" class="mmc-title-button" aria-label="Close" t-att-disabled="this.state.saving" t-on-click="() => this.closeComposer()">×</button></div></div>
+                <form class="mmc-composer" t-on-submit.prevent="() => this.simulateSend()">
+                    <div t-if="this.state.error" class="mmc-error" role="alert" t-out="this.state.error"/>
+                    <label class="mmc-compose-field"><span>From</span><select aria-label="From account" t-att-value="this.state.composer.accountId" t-att-disabled="!!this.state.composer.replyToId or (!this.state.demo and !!this.state.composer.id) or this.state.saving" t-on-change="(ev) => this.editDraft('accountId', ev.target.value)"><option t-foreach="this.sendingAccounts" t-as="a" t-key="a.id" t-att-value="a.id" t-att-selected="a.id === this.state.composer.accountId" t-out="a.email"/></select></label>
+                    <label class="mmc-compose-field"><span>To</span><input aria-label="To" type="text" placeholder="recipient@example.com" autofocus="autofocus" t-att-disabled="this.state.saving" t-att-value="this.state.composer.to" t-on-input="(ev) => this.editDraft('to', ev.target.value)"/></label>
+                    <label class="mmc-compose-field"><span>Subject</span><input aria-label="Subject" type="text" maxlength="998" t-att-disabled="this.state.saving" t-att-value="this.state.composer.subject" t-on-input="(ev) => this.editDraft('subject', ev.target.value)"/></label>
+                    <label class="mmc-body-label"><span class="mmc-sr-only">Message</span><textarea aria-label="Message" maxlength="200000" placeholder="Write your message…" t-att-disabled="this.state.saving" t-att-value="this.state.composer.body" t-on-input="(ev) => this.editDraft('body', ev.target.value)"/></label>
+                    <div class="mmc-composer-actions"><button type="submit" class="mmc-button mmc-primary" t-att-disabled="this.state.saving or this.state.composer.smtpUncertain" t-out="this.state.saving ? 'Working…' : (this.state.demo ? 'Simulate send' : 'Send')"/><button t-if="this.canSaveProviderDraft" type="button" class="mmc-button" t-on-click="() => this.saveDraft()" t-att-disabled="this.state.saving" t-out="this.state.demo ? 'Save sample draft' : 'Save draft'"/><small t-out="this.state.dirty ? 'Unsaved changes' : (this.state.demo ? 'Sample only' : (this.state.composer.id ? 'Saved at provider' : 'New draft'))"/></div>
+                    <p class="mmc-compose-note" t-out="this.state.demo ? 'Sample mode: no email will be sent. Drafts are kept in memory until reload.' : (this.canSaveProviderDraft ? 'Live mode: Send sends a real email. Save draft stores it at the provider.' : 'SMTP sends a real email directly. Drafts and a Sent folder are unavailable for POP3 accounts.')"/>
+                </form>
+            </section>
+        </div>
+        <div t-if="this.state.showAccountForm" class="mmc-overlay">
+            <section class="mmc-account-dialog" role="dialog" aria-modal="true" aria-labelledby="mmc-account-title">
+                <h2 id="mmc-account-title">Add account setup</h2>
+                <p t-if="this.state.error" class="mmc-error" role="alert" t-out="this.state.error"/>
+                <form t-on-submit.prevent="() => this.saveAccount()">
+                    <label>Account name<input aria-label="Account name" required="required" maxlength="120" t-att-disabled="this.state.saving or !!this.state.accountForm.id" t-att-value="this.state.accountForm.name" t-on-input="(ev) => this.state.accountForm.name = ev.target.value"/></label>
+                    <label>Provider<select aria-label="Provider" t-att-disabled="this.state.saving or !!this.state.accountForm.id" t-att-value="this.state.accountForm.provider" t-on-change="(ev) => this.state.accountForm.provider = ev.target.value"><option value="gmail">Gmail</option><option value="outlook">Outlook</option><option value="pop3">POP3 + SMTP</option></select></label>
+                    <label t-if="this.state.accountForm.provider === 'pop3'">Email address<input aria-label="Email address" type="email" required="required" maxlength="254" t-att-disabled="this.state.saving or !!this.state.accountForm.id" t-att-value="this.state.accountForm.email" t-on-input="(ev) => this.state.accountForm.email = ev.target.value"/></label>
+                    <button type="button" class="mmc-button mmc-primary" t-if="this.state.accountForm.provider !== 'pop3'" t-on-click="() => this.connectAccount(this.state.accountForm.id)" t-att-disabled="this.state.saving">Connect</button>
+                    <fieldset t-if="this.state.accountForm.provider === 'pop3'" t-att-disabled="this.state.saving">
+                        <label>Login username<input aria-label="Mail login username" autocomplete="username" placeholder="Defaults to email address" t-att-value="this.state.accountForm.username" t-on-input="(ev) => this.state.accountForm.username = ev.target.value"/></label>
+                        <label>Password / app password<input aria-label="Mail password" type="password" autocomplete="new-password" required="required" maxlength="1024" t-att-value="this.state.accountForm.password" t-on-input="(ev) => this.state.accountForm.password = ev.target.value"/></label>
+                        <details><summary>Server settings (Gmail defaults)</summary>
+                            <p>Use the details supplied by your mail provider. Custom servers must first be approved by your Odoo administrator. One login is used for both servers.</p>
+                            <label>POP3 hostname<input required="required" t-att-value="this.state.accountForm.pop_host" t-on-input="(ev) => this.state.accountForm.pop_host = ev.target.value"/></label>
+                            <label>POP3 TLS port<input required="required" type="number" min="1" max="65535" t-att-value="this.state.accountForm.pop_port" t-on-input="(ev) => this.state.accountForm.pop_port = ev.target.value"/></label>
+                            <label>SMTP hostname<input required="required" t-att-value="this.state.accountForm.smtp_host" t-on-input="(ev) => this.state.accountForm.smtp_host = ev.target.value"/></label>
+                            <label>SMTP port<input required="required" type="number" min="1" max="65535" t-att-value="this.state.accountForm.smtp_port" t-on-input="(ev) => this.state.accountForm.smtp_port = ev.target.value"/></label>
+                            <label>SMTP security<select t-att-value="this.state.accountForm.smtp_security" t-on-change="(ev) => this.state.accountForm.smtp_security = ev.target.value"><option value="ssl">Implicit TLS (usually 465)</option><option value="starttls">STARTTLS (usually 587)</option></select></label>
+                        </details>
+                        <p>For Gmail, enable POP access and use an app password when your account permits it. Normal Gmail OAuth does not need this password.</p>
+                    </fieldset>
+                    <div class="mmc-composer-actions">
+                        <button type="submit" class="mmc-button mmc-primary" t-if="this.state.accountForm.provider === 'pop3'" t-att-disabled="this.state.saving" t-out="this.state.saving ? 'Saving…' : 'Save account setup'"/>
+                        <button type="button" class="mmc-button" t-att-disabled="this.state.saving" t-on-click="() => this.closeAccountForm()">Cancel</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </main>
+</t>
+</templates>
