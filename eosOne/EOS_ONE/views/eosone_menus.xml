@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_eosone_root"
+        name="EOS One"
+        sequence="30"
+        groups="base.group_user"
+    />
+
+    <menuitem
+        id="menu_eosone_workspace"
+        name="Workspace"
+        parent="menu_eosone_root"
+        sequence="1"
+    />
+
+    <menuitem
+        id="menu_eos_meetings"
+        name="Meetings"
+        parent="menu_eosone_workspace"
+        action="action_eos_meetings"
+        sequence="1"
+    />
+
+    <menuitem
+        id="menu_eos_issues"
+        name="Issues (IDS)"
+        parent="menu_eosone_workspace"
+        action="action_eos_issues"
+        sequence="2"
+    />
+
+    <menuitem
+        id="menu_eos_todos"
+        name="To-Dos"
+        parent="menu_eosone_workspace"
+        action="action_eos_todos"
+        sequence="3"
+    />
+
+    <menuitem
+        id="menu_eos_headlines"
+        name="Headlines"
+        parent="menu_eosone_workspace"
+        action="action_eos_headlines"
+        sequence="4"
+    />
+
+    <menuitem
+        id="menu_eos_tracking"
+        name="Tracking"
+        parent="menu_eosone_root"
+        sequence="2"
+    />
+
+    <menuitem
+        id="menu_eos_scorecard"
+        name="Scorecard"
+        parent="menu_eos_tracking"
+        action="action_eos_scorecard"
+        sequence="1"
+    />
+
+    <menuitem
+        id="menu_eos_rocks"
+        name="Rocks"
+        parent="menu_eos_tracking"
+        action="action_eos_rocks"
+        sequence="2"
+    />
+
+    <menuitem
+        id="menu_eos_configuration"
+        name="Configuration"
+        parent="menu_eosone_root"
+        sequence="90"
+        groups="base.group_system"
+    />
+
+    <menuitem
+        id="menu_eos_teams"
+        name="Teams"
+        parent="menu_eos_configuration"
+        action="action_eos_teams"
+        sequence="1"
+    />
+
+</odoo>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_eos_headline_list" model="ir.ui.view">
+        <field name="name">eos.headline.list</field>
+        <field name="model">eos.headline</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="meeting_id"/>
+                <field name="headline_type"/>
+                <field name="needs_discussion"/>
+                <field name="issue_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_eos_headline_form" model="ir.ui.view">
+        <field name="name">eos.headline.form</field>
+        <field name="model">eos.headline</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_create_issue"
+                            type="object"
+                            string="Create Issue"
+                            class="oe_highlight"
+                            invisible="issue_id"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <field name="meeting_id"/>
+                        <field name="headline_type"/>
+                        <field name="needs_discussion"/>
+                        <field name="issue_id"/>
+                    </group>
+
+                    <field name="description"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_eos_headlines" model="ir.actions.act_window">
+        <field name="name">Headlines</field>
+        <field name="res_model">eos.headline</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

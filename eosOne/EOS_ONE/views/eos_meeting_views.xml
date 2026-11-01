@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_eos_meeting_list" model="ir.ui.view">
+        <field name="name">eos.meeting.list</field>
+        <field name="model">eos.meeting</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="team_id"/>
+                <field name="meeting_date"/>
+                <field name="meeting_type"/>
+                <field name="facilitator_id"/>
+                <field name="state"/>
+                <field name="rating"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_eos_meeting_form" model="ir.ui.view">
+        <field name="name">eos.meeting.form</field>
+        <field name="model">eos.meeting</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_start"
+                            type="object"
+                            string="Start Meeting"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+
+                    <button name="action_conclude"
+                            type="object"
+                            string="Conclude Meeting"
+                            class="oe_highlight"
+                            invisible="state != 'in_progress'"/>
+
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,in_progress,done"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="team_id"/>
+                            <field name="meeting_type"/>
+                            <field name="meeting_date"/>
+                        </group>
+                        <group>
+                            <field name="facilitator_id"/>
+                            <field name="attendee_ids"
+                                   widget="many2many_tags"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Meeting Agenda">
+                            <field name="section_ids">
+                                <list editable="bottom">
+                                    <field name="sequence"
+                                           widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="planned_minutes"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Meeting Rating">
+                            <field name="rating"/>
+                            <field name="recap"
+                                   widget="html"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_eos_meetings" model="ir.actions.act_window">
+        <field name="name">EOS Meetings</field>
+        <field name="res_model">eos.meeting</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

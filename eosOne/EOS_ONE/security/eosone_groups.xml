@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="group_eosone_user" model="res.groups">
+        <field name="name">EOS Team Member</field>
+    </record>
+
+    <record id="group_eosone_viewer" model="res.groups">
+        <field name="name">EOS Viewer</field>
+        <field name="implied_ids"
+               eval="[(4, ref('group_eosone_user'))]"/>
+    </record>
+
+    <record id="group_eosone_admin" model="res.groups">
+        <field name="name">EOS Administrator</field>
+        <field name="implied_ids"
+               eval="[(4, ref('group_eosone_user'))]"/>
+    </record>
+
+</odoo>

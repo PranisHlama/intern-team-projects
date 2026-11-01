@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_eos_todo_list" model="ir.ui.view">
+        <field name="name">eos.todo.list</field>
+        <field name="model">eos.todo</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="team_id"/>
+                <field name="owner_id"/>
+                <field name="meeting_id"/>
+                <field name="date_deadline"/>
+                <field name="done"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_eos_todo_form" model="ir.ui.view">
+        <field name="name">eos.todo.form</field>
+        <field name="model">eos.todo</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <field name="team_id"/>
+                        <field name="owner_id"/>
+                        <field name="meeting_id"/>
+                        <field name="issue_id"/>
+                        <field name="date_deadline"/>
+                        <field name="done"/>
+                        <field name="completed_date"/>
+                    </group>
+
+                    <field name="description"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_eos_todos" model="ir.actions.act_window">
+        <field name="name">To-Dos</field>
+        <field name="res_model">eos.todo</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
