@@ -1,0 +1,682 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_strategic_kpi_definition_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.definition.list</field>
+        <field name="model">strategic.kpi.definition</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="unit"/>
+                <field name="direction"/>
+                <field name="source_type"/>
+                <field name="calculation_type"/>
+                <field name="source_product_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- KPI definition version views. The action is declared before the KPI form
+         because the form button references its external ID. -->
+    <record id="view_strategic_kpi_definition_version_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.definition.version.list</field>
+        <field name="model">strategic.kpi.definition.version</field>
+        <field name="arch" type="xml">
+            <list create="1" edit="0" delete="0">
+                <field name="name"/>
+                <field name="kpi_id"/>
+                <field name="version_number"/>
+                <field name="effective_from"/>
+                <field name="effective_to"/>
+                <field name="direction"/>
+                <field name="unit"/>
+                <field name="source_type"/>
+                <field name="calculation_type"/>
+                <field name="source_product_id"/>
+                <field name="state"/>
+                <field name="approved_by_id"/>
+                <field name="approved_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_definition_version_form" model="ir.ui.view">
+        <field name="name">strategic.kpi.definition.version.form</field>
+        <field name="model">strategic.kpi.definition.version</field>
+        <field name="arch" type="xml">
+            <form delete="0">
+                <header>
+                    <button name="action_approve"
+                            string="Approve Version"
+                            type="object"
+                            class="btn-primary"
+                            groups="strategic_management.group_strategic_head_office_manager"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,approved"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="kpi_id" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                            <field name="version_number" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="effective_from" readonly="state == 'approved'"/>
+                            <field name="effective_to" readonly="1"/>
+                            <field name="direction" readonly="state == 'approved'"/>
+                            <field name="unit" readonly="state == 'approved'"/>
+                            <field name="source_type" readonly="state == 'approved'"/>
+                            <field name="calculation_type" readonly="state == 'approved'"/>
+                            <field name="source_product_id" readonly="state == 'approved'"
+                                   invisible="calculation_type not in ['pos_sold_quantity', 'pos_recipe_consumption_estimate', 'purchase_ordered_quantity', 'purchase_received_quantity', 'inventory_recorded_waste_quantity', 'inventory_validated_waste_quantity', 'inventory_opening_stock_quantity', 'inventory_closing_stock_quantity', 'inventory_actual_consumption_quantity', 'inventory_transfer_in_quantity', 'inventory_transfer_out_quantity', 'inventory_adjustment_quantity', 'inventory_unexplained_variance_quantity', 'inventory_count_difference_quantity', 'inventory_recorded_waste_cost', 'pos_product_net_sales', 'purchase_average_unit_price', 'pos_average_unit_price', 'inventory_closing_stock_value', 'inventory_waste_recording_pct', 'inventory_ingredient_use_difference_quantity']"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="change_reason" readonly="state == 'approved'"/>
+                        <field name="description" readonly="state == 'approved'"/>
+                    </group>
+                    <group string="Audit Information">
+                        <group>
+                            <field name="created_by_id" readonly="1"/>
+                            <field name="created_at" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="approved_by_id" readonly="1"/>
+                            <field name="approved_at" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Evaluations">
+                            <field name="evaluation_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="status"/>
+                                    <field name="attainment_status"/>
+                                    <field name="evaluated_at"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_definition_version" model="ir.actions.act_window">
+        <field name="name">KPI Definition Versions</field>
+        <field name="res_model">strategic.kpi.definition.version</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('kpi_id', '=', active_id)]</field>
+        <field name="context">{'default_kpi_id': active_id}</field>
+    </record>
+
+    <!-- KPI baseline views and action. Baselines are distinct from targets. -->
+    <record id="view_strategic_kpi_baseline_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.baseline.list</field>
+        <field name="model">strategic.kpi.baseline</field>
+        <field name="arch" type="xml">
+            <list create="1" edit="0" delete="0">
+                <field name="name"/>
+                <field name="kpi_id"/>
+                <field name="definition_version_id"/>
+                <field name="scope"/>
+                <field name="warehouse_id"/>
+                <field name="user_id"/>
+                <field name="baseline_value"/>
+                <field name="source_period_start"/>
+                <field name="source_period_end"/>
+                <field name="effective_from"/>
+                <field name="effective_to"/>
+                <field name="state"/>
+                <field name="approved_by_id"/>
+                <field name="approved_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_baseline_form" model="ir.ui.view">
+        <field name="name">strategic.kpi.baseline.form</field>
+        <field name="model">strategic.kpi.baseline</field>
+        <field name="arch" type="xml">
+            <form delete="0">
+                <header>
+                    <button name="action_approve"
+                            string="Approve Baseline"
+                            type="object"
+                            class="btn-primary"
+                            groups="strategic_management.group_strategic_head_office_manager"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,approved"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="kpi_id" readonly="1"/>
+                            <field name="definition_version_id"
+                                   domain="[('kpi_id', '=', kpi_id), ('state', '=', 'approved')]"
+                                   readonly="1"
+                                   force_save="1"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                            <field name="scope" readonly="state == 'approved'"/>
+                        </group>
+                        <group>
+                            <field name="warehouse_id" invisible="scope != 'branch'" readonly="state == 'approved'"/>
+                            <field name="user_id" invisible="scope != 'user'" readonly="state == 'approved'"/>
+                            <field name="baseline_value" readonly="state == 'approved'"/>
+                            <field name="source_period_start" readonly="state == 'approved'"/>
+                            <field name="source_period_end" readonly="state == 'approved'"/>
+                            <field name="effective_from" readonly="state == 'approved'"/>
+                            <field name="effective_to" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="source_note" readonly="state == 'approved'"/>
+                        <field name="change_reason" readonly="state == 'approved'"/>
+                    </group>
+                    <group string="Approval Audit">
+                        <group>
+                            <field name="created_by_id" readonly="1"/>
+                            <field name="created_at" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="approved_by_id" readonly="1"/>
+                            <field name="approved_at" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Linked Targets">
+                            <field name="target_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="target_basis"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="target_value"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_baseline" model="ir.actions.act_window">
+        <field name="name">KPI Baselines</field>
+        <field name="res_model">strategic.kpi.baseline</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('kpi_id', '=', active_id)]</field>
+        <field name="context">{'default_kpi_id': active_id}</field>
+    </record>
+
+    <record id="view_strategic_kpi_definition_form" model="ir.ui.view">
+        <field name="name">strategic.kpi.definition.form</field>
+        <field name="model">strategic.kpi.definition</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="%(action_strategic_kpi_definition_version)d"
+                            string="Manage Definition Versions"
+                            type="action"
+                            class="btn-secondary"
+                            groups="strategic_management.group_strategic_head_office_manager"
+                            context="{'default_kpi_id': id}"/>
+                    <button name="%(action_strategic_kpi_baseline)d"
+                            string="Manage KPI Baselines"
+                            type="action"
+                            class="btn-secondary"
+                            groups="strategic_management.group_strategic_head_office_manager"
+                            context="{'default_kpi_id': id}"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="unit" readonly="1"/>
+                            <field name="direction" readonly="1"/>
+                            <field name="source_type" readonly="1"/>
+                            <field name="calculation_type" readonly="1"/>
+                            <field name="source_product_id" readonly="1"
+                                   invisible="calculation_type not in ['pos_sold_quantity', 'pos_recipe_consumption_estimate', 'purchase_ordered_quantity', 'purchase_received_quantity', 'inventory_recorded_waste_quantity', 'inventory_validated_waste_quantity', 'inventory_opening_stock_quantity', 'inventory_closing_stock_quantity', 'inventory_actual_consumption_quantity', 'inventory_transfer_in_quantity', 'inventory_transfer_out_quantity', 'inventory_adjustment_quantity', 'inventory_unexplained_variance_quantity', 'inventory_count_difference_quantity', 'inventory_recorded_waste_cost', 'pos_product_net_sales', 'purchase_average_unit_price', 'pos_average_unit_price', 'inventory_closing_stock_value', 'inventory_waste_recording_pct', 'inventory_ingredient_use_difference_quantity']"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description">
+                            <field name="description" readonly="1"/>
+                        </page>
+                        <page string="Definition Versions">
+                            <field name="version_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="version_number"/>
+                                    <field name="effective_from"/>
+                                    <field name="effective_to"/>
+                                    <field name="direction"/>
+                                    <field name="unit"/>
+                                    <field name="source_type"/>
+                                    <field name="calculation_type"/>
+                                    <field name="source_product_id"/>
+                                    <field name="state"/>
+                                    <field name="approved_by_id"/>
+                                    <field name="approved_at"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Targets">
+                            <field name="target_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="target_basis"/>
+                                    <field name="baseline_id"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="target_value"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Baselines">
+                            <field name="baseline_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="scope"/>
+                                    <field name="warehouse_id"/>
+                                    <field name="user_id"/>
+                                    <field name="baseline_value"/>
+                                    <field name="source_period_start"/>
+                                    <field name="source_period_end"/>
+                                    <field name="effective_from"/>
+                                    <field name="effective_to"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Evaluations">
+                            <field name="evaluation_ids" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_definition" model="ir.actions.act_window">
+        <field name="name">KPI Definitions</field>
+        <field name="res_model">strategic.kpi.definition</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_strategic_kpi_target_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.target.list</field>
+        <field name="model">strategic.kpi.target</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="kpi_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="scope"/>
+                <field name="target_basis"/>
+                <field name="baseline_id"/>
+                <field name="warehouse_id"/>
+                <field name="user_id"/>
+                <field name="target_value"/>
+                <field name="range_min"/>
+                <field name="range_max"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_target_form" model="ir.ui.view">
+        <field name="name">strategic.kpi.target.form</field>
+        <field name="model">strategic.kpi.target</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_approve" string="Approve" type="object" class="btn-primary"/>
+                    <button name="action_archive" string="Archive" type="object"/>
+                    <button name="action_evaluate_source" string="Evaluate from Operational Source" type="object"
+                            class="btn-primary"
+                            groups="strategic_management.group_strategic_head_office_manager,strategic_management.group_strategic_branch_manager"
+                            invisible="state != 'approved' or calculation_type not in ['pos_sold_quantity', 'pos_recipe_consumption_estimate', 'purchase_ordered_quantity', 'purchase_received_quantity', 'inventory_recorded_waste_quantity', 'inventory_validated_waste_quantity', 'inventory_opening_stock_quantity', 'inventory_closing_stock_quantity', 'inventory_actual_consumption_quantity', 'inventory_transfer_in_quantity', 'inventory_transfer_out_quantity', 'inventory_adjustment_quantity', 'inventory_unexplained_variance_quantity', 'inventory_count_difference_quantity', 'inventory_waste_cost_amount', 'inventory_waste_cost_to_sales_pct', 'inventory_recorded_waste_cost', 'pos_net_sales', 'pos_sales_growth_pct', 'pos_average_order_value', 'pos_product_net_sales', 'accounting_total_expenses', 'accounting_expense_to_income_pct', 'purchase_average_unit_price', 'pos_average_unit_price', 'inventory_closing_stock_value', 'supplier_on_time_delivery_pct', 'inventory_recipe_coverage_pct', 'inventory_count_plan_completion_pct', 'inventory_waste_recording_pct', 'inventory_ingredient_use_difference_quantity']"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <field name="calculation_type" invisible="1"/>
+                    <group>
+                        <group>
+                            <field name="kpi_id"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="scope"/>
+                            <field name="target_basis"/>
+                            <field name="baseline_id"
+                                   domain="[('kpi_id', '=', kpi_id), ('state', '=', 'approved'), ('scope', '=', scope)]"
+                                   invisible="target_basis != 'baseline_relative'"/>
+                        </group>
+                        <group>
+                            <field name="warehouse_id"/>
+                            <field name="user_id"/>
+                            <field name="target_value"/>
+                            <field name="range_min"/>
+                            <field name="range_max"/>
+                            <field name="unit"/>
+                        </group>
+                    </group>
+                    <field name="evaluation_ids" readonly="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_target" model="ir.actions.act_window">
+        <field name="name">KPI Targets</field>
+        <field name="res_model">strategic.kpi.target</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_strategic_kpi_evaluation_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.list</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <list create="1" edit="0" delete="0">
+                <field name="name"/>
+                <field name="kpi_id"/>
+                <field name="definition_version_id"/>
+                <field name="target_basis"/>
+                <field name="baseline_id"/>
+                <field name="baseline_value"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="scope"/>
+                <field name="warehouse_id" optional="show"/>
+                <field name="actual_value"/>
+                <field name="unit"/>
+                <field name="target_value"/>
+                <field name="attainment"/>
+                <field name="attainment_status"/>
+                <field name="status"/>
+                <field name="evaluated_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_evaluation_form" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.form</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <!-- Do not disable form edit mode here: Odoo needs it to show Save/Discard
+                 while creating a new evaluation. Model-level write protection keeps
+                 historical evaluation data immutable after creation. -->
+            <form delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="kpi_id"/>
+                            <field name="definition_version_id" readonly="1"/>
+                            <field name="target_basis" readonly="1"/>
+                            <field name="baseline_id" readonly="1"/>
+                            <field name="baseline_value" readonly="1" invisible="target_basis != 'baseline_relative'"/>
+                            <field name="target_id"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="scope"/>
+                            <field name="warehouse_id"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="actual_value"/>
+                            <field name="has_actual_value"/>
+                            <field name="target_value"/>
+                            <field name="range_min"/>
+                            <field name="range_max"/>
+                            <field name="unit"/>
+                            <field name="gap"/>
+                            <field name="attainment"/>
+                            <field name="status"/>
+                            <field name="attainment_status"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="source_model"/>
+                        <field name="source_record_ref"/>
+                        <field name="source_note"/>
+                        <field name="reason"/>
+                        <field name="evaluated_at"/>
+                        <field name="evaluated_by_id"/>
+                        <field name="superseded_by_id"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Shared search filters for analysis and data-quality follow-up. -->
+    <record id="view_strategic_kpi_evaluation_search" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.search</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <search string="KPI Evaluations">
+                <field name="kpi_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="scope"/>
+                <field name="warehouse_id"/>
+                <field name="user_id"/>
+                <filter name="valid_only" string="Valid" domain="[('status', '=', 'valid')]"/>
+                <separator/>
+                <filter name="group_by_kpi" string="KPI" context="{'group_by': 'kpi_id'}"/>
+                <filter name="group_by_scope" string="Scope" context="{'group_by': 'scope'}"/>
+                <filter name="group_by_warehouse" string="Branch" context="{'group_by': 'warehouse_id'}"/>
+                <filter name="group_by_period" string="Month" context="{'group_by': 'date_start:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Phase 7 reporting: valid evaluations only, grouped by KPI and month. -->
+    <record id="view_strategic_kpi_evaluation_graph" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.graph</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <graph string="KPI Attainment Trend" type="line">
+                <field name="date_start" interval="month"/>
+                <field name="kpi_id"/>
+                <field name="attainment" type="measure" string="Average Attainment (%)"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_evaluation_pivot" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.pivot</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <pivot string="KPI Attainment by Branch and Period">
+                <field name="kpi_id" type="row"/>
+                <field name="scope" type="row"/>
+                <field name="warehouse_id" type="row"/>
+                <field name="date_start" interval="month" type="col"/>
+                <field name="attainment" type="measure" string="Average Attainment (%)"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_evaluation" model="ir.actions.act_window">
+        <field name="name">KPI Evaluations</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_strategic_kpi_evaluation_exception_list" model="ir.ui.view">
+        <field name="name">strategic.kpi.evaluation.exception.list</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-danger="status == 'data_quality_issue'"
+                  decoration-warning="status in ('not_evaluated', 'pending_review')">
+                <field name="name"/>
+                <field name="kpi_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="scope"/>
+                <field name="warehouse_id" optional="show"/>
+                <field name="user_id" optional="hide"/>
+                <field name="status" widget="badge"/>
+                <field name="reason"/>
+                <field name="source_note" optional="show"/>
+                <field name="evaluated_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_analysis" model="ir.actions.act_window">
+        <field name="name">KPI Analysis</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="domain">[('status', '=', 'valid')]</field>
+        <field name="context">{'search_default_group_by_kpi': 1}</field>
+    </record>
+
+    <record id="action_strategic_kpi_exceptions" model="ir.actions.act_window">
+        <field name="name">KPI Exceptions</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('status', 'in', ['not_evaluated', 'data_quality_issue', 'pending_review'])]</field>
+    </record>
+
+    <record id="action_strategic_kpi_exceptions_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_strategic_kpi_evaluation_exception_list"/>
+        <field name="act_window_id" ref="action_strategic_kpi_exceptions"/>
+    </record>
+
+    <!-- Phase 7 role dashboards. Data scope continues to be enforced by the
+         existing strategic.kpi.evaluation access rules; each action only shows
+         valid evaluations and uses average attainment, never a sum of ratios. -->
+    <record id="view_strategic_kpi_dashboard_head_office_pivot" model="ir.ui.view">
+        <field name="name">strategic.kpi.dashboard.head.office.pivot</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <pivot string="Organization Performance by KPI, Branch and Month">
+                <field name="kpi_id" type="row"/>
+                <field name="scope" type="row"/>
+                <field name="warehouse_id" type="row"/>
+                <field name="date_start" interval="month" type="col"/>
+                <field name="attainment" type="measure" string="Average Attainment (%)"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_dashboard_branch_pivot" model="ir.ui.view">
+        <field name="name">strategic.kpi.dashboard.branch.pivot</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <pivot string="Branch Performance by KPI, Scope and Month">
+                <field name="kpi_id" type="row"/>
+                <field name="scope" type="row"/>
+                <field name="warehouse_id" type="row"/>
+                <field name="date_start" interval="month" type="col"/>
+                <field name="attainment" type="measure" string="Average Attainment (%)"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_strategic_kpi_dashboard_employee_pivot" model="ir.ui.view">
+        <field name="name">strategic.kpi.dashboard.employee.pivot</field>
+        <field name="model">strategic.kpi.evaluation</field>
+        <field name="arch" type="xml">
+            <pivot string="My KPI Performance by Month">
+                <field name="kpi_id" type="row"/>
+                <field name="date_start" interval="month" type="col"/>
+                <field name="attainment" type="measure" string="Average Attainment (%)"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_strategic_kpi_dashboard_head_office" model="ir.actions.act_window">
+        <field name="name">Head Office Dashboard</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="view_id" ref="view_strategic_kpi_dashboard_head_office_pivot"/>
+        <field name="search_view_id" ref="view_strategic_kpi_evaluation_search"/>
+        <field name="domain">[('status', '=', 'valid')]</field>
+        <field name="context">{'search_default_group_by_kpi': 1, 'search_default_group_by_scope': 1, 'search_default_group_by_warehouse': 1}</field>
+    </record>
+
+    <record id="action_strategic_kpi_dashboard_branch" model="ir.actions.act_window">
+        <field name="name">Branch Performance Dashboard</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="view_id" ref="view_strategic_kpi_dashboard_branch_pivot"/>
+        <field name="search_view_id" ref="view_strategic_kpi_evaluation_search"/>
+        <field name="domain">[('status', '=', 'valid')]</field>
+        <field name="context">{'search_default_group_by_kpi': 1, 'search_default_group_by_scope': 1, 'search_default_group_by_warehouse': 1, 'search_default_group_by_period': 1}</field>
+    </record>
+
+    <!-- Each dashboard opens on the unit-aware list; analytical views remain selectable. -->
+    <record id="action_strategic_kpi_dashboard_head_office_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_strategic_kpi_evaluation_list"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_head_office"/>
+    </record>
+    <record id="action_strategic_kpi_dashboard_head_office_view_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="view_strategic_kpi_dashboard_head_office_pivot"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_head_office"/>
+    </record>
+    <record id="action_strategic_kpi_dashboard_head_office_view_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="view_strategic_kpi_evaluation_graph"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_head_office"/>
+    </record>
+
+    <record id="action_strategic_kpi_dashboard_branch_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_strategic_kpi_evaluation_list"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_branch"/>
+    </record>
+    <record id="action_strategic_kpi_dashboard_branch_view_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="view_strategic_kpi_dashboard_branch_pivot"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_branch"/>
+    </record>
+    <record id="action_strategic_kpi_dashboard_branch_view_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="view_strategic_kpi_evaluation_graph"/>
+        <field name="act_window_id" ref="action_strategic_kpi_dashboard_branch"/>
+    </record>
+
+    <record id="action_strategic_kpi_dashboard_employee" model="ir.actions.act_window">
+        <field name="name">My KPI Dashboard</field>
+        <field name="res_model">strategic.kpi.evaluation</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="view_id" ref="view_strategic_kpi_dashboard_employee_pivot"/>
+        <field name="search_view_id" ref="view_strategic_kpi_evaluation_search"/>
+        <field name="domain">[('status', '=', 'valid')]</field>
+        <field name="context">{'search_default_group_by_kpi': 1, 'search_default_group_by_period': 1}</field>
+    </record>
+
+</odoo>
