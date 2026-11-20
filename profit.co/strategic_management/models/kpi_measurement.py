@@ -5,6 +5,8 @@ import math
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from .kpi import KPI_SCOPES
+
 
 _GROUP_HEAD = "strategic_management.group_strategic_head_office_manager"
 _GROUP_BRANCH = "strategic_management.group_strategic_branch_manager"
@@ -27,7 +29,7 @@ class StrategicKpiMeasurement(models.Model):
     date_start = fields.Date(required=True, readonly=True, index=True)
     date_end = fields.Date(required=True, readonly=True, index=True)
     scope = fields.Selection(
-        [("organization", "Organization"), ("branch", "Branch"), ("user", "Employee")],
+        KPI_SCOPES,
         required=True, readonly=True, index=True,
     )
     warehouse_id = fields.Many2one("stock.warehouse", readonly=True, index=True)
@@ -84,21 +86,26 @@ class StrategicKpiMeasurement(models.Model):
         target_id = values.get("target_id") or self.env.context.get("default_target_id")
         target = self.env["strategic.kpi.target"].browse(target_id).exists() if target_id else False
         if target:
-            version = target.kpi_id._get_definition_version_for_period(target.date_start, target.date_end)
-            derived = {
-                "kpi_id": target.kpi_id.id,
-                "target_id": target.id,
-                "definition_version_id": version.id,
-                "company_id": target.company_id.id,
-                "date_start": target.date_start,
-                "date_end": target.date_end,
-                "scope": target.scope,
-                "warehouse_id": target.warehouse_id.id or False,
-                "user_id": target.user_id.id or False,
-                "unit": version.unit,
-            }
+            derived = self._values_from_target(target)
             values.update({key: value for key, value in derived.items() if key in fields_list})
         return values
+
+    @api.model
+    def _values_from_target(self, target):
+        """What a measurement takes from its KPI target: the KPI, its version for the period, the period and the scope."""
+        version = target.kpi_id._get_definition_version_for_period(target.date_start, target.date_end)
+        return {
+            "kpi_id": target.kpi_id.id,
+            "target_id": target.id,
+            "definition_version_id": version.id,
+            "company_id": target.company_id.id,
+            "date_start": target.date_start,
+            "date_end": target.date_end,
+            "scope": target.scope,
+            "warehouse_id": target.warehouse_id.id or False,
+            "user_id": target.user_id.id or False,
+            "unit": version.unit,
+        }
 
     @api.depends("kpi_id.name", "date_start", "date_end", "submission_version")
     def _compute_name(self):
@@ -138,18 +145,8 @@ class StrategicKpiMeasurement(models.Model):
             elif reason:
                 raise ValidationError("A correction reason must reference the approved measurement being corrected.")
 
-            version = target.kpi_id._get_definition_version_for_period(target.date_start, target.date_end)
+            vals.update(self._values_from_target(target))
             vals.update({
-                "kpi_id": target.kpi_id.id,
-                "target_id": target.id,
-                "definition_version_id": version.id,
-                "company_id": target.company_id.id,
-                "date_start": target.date_start,
-                "date_end": target.date_end,
-                "scope": target.scope,
-                "warehouse_id": target.warehouse_id.id or False,
-                "user_id": target.user_id.id or False,
-                "unit": version.unit,
                 "submitted_by_id": self.env.user.id,
                 "state": "draft",
                 "submission_version": 0,
@@ -407,7 +404,7 @@ class StrategicKpiMeasurementRevision(models.Model):
     definition_version_id = fields.Many2one("strategic.kpi.definition.version", required=True, readonly=True, ondelete="restrict")
     date_start = fields.Date(required=True, readonly=True)
     date_end = fields.Date(required=True, readonly=True)
-    scope = fields.Selection([("organization", "Organization"), ("branch", "Branch"), ("user", "Employee")], required=True, readonly=True)
+    scope = fields.Selection(KPI_SCOPES, required=True, readonly=True)
     warehouse_id = fields.Many2one("stock.warehouse", readonly=True)
     user_id = fields.Many2one("res.users", readonly=True)
     actual_value = fields.Float(required=True, readonly=True)

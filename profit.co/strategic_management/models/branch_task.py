@@ -15,6 +15,7 @@ kept as their own records and only change through the actions here.
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tools import html2plaintext
 
 _HEAD = "strategic_management.group_strategic_head_office_manager"
 _MANAGER = "strategic_management.group_strategic_branch_manager"
@@ -333,6 +334,38 @@ class StrategicBranchTask(models.Model):
         return {"tasks": [task._row() for task in tasks], "counts": self._counts(tasks)}
 
     @api.model
+    def get_employee_workspace(self):
+        """The signed-in Employee's working day, from their own tasks only."""
+        self.env["strategic.performance.dashboard"]._require_employee_dashboard_access()
+        company = self.env.company
+        tasks = self.search([("assigned_user_id", "=", self.env.user.id), ("company_id", "=", company.id)])
+        today = fields.Date.context_today(self.with_context(tz=company.partner_id.tz or "UTC"))
+        working = tasks.filtered(lambda task: task.state in WORKING_STATES)
+        # Most urgent first: late, sent back for correction, due today, high priority, then by due date.
+        ordered = working.sorted(lambda task: (not task.is_overdue, task.state != "changes_requested", task.date_deadline != today, task.priority != "1", task.date_deadline, task.id))
+        upcoming = working.filtered(lambda task: today < task.date_deadline <= fields.Date.add(today, days=7)).sorted("date_deadline")
+        blockers = self.env["strategic.task.blocker"].sudo().search([("task_id", "in", tasks.ids)], limit=5)
+        messages = self.env["mail.message"].sudo().search([
+            ("model", "=", self._name), ("res_id", "in", tasks.ids), ("message_type", "!=", "user_notification")], order="date desc, id desc", limit=30)
+        names = {task.id: task.name for task in tasks}
+        activity = [{"id": message.id, "task": names[message.res_id], "text": text, "author": message.author_id.name or "", "date": fields.Datetime.to_string(message.date)}
+                    for message, text in ((message, html2plaintext(message.body or "").strip()) for message in messages) if text][:8]
+        return {
+            "counts": {"open": len(tasks.filtered(lambda task: task.state in OPEN_STATES)), "due_today": len(working.filtered(lambda task: task.date_deadline == today)),
+                       "overdue": len(working.filtered("is_overdue")), "review": len(tasks.filtered(lambda task: task.state == "submitted")),
+                       "correction": len(working.filtered(lambda task: task.state == "changes_requested"))},
+            "today": fields.Date.to_string(today),
+            "tasks": [task._row() for task in ordered[:10]],
+            "tasks_total": len(ordered),
+            "upcoming": [task._row() for task in upcoming[:5]],
+            "activity": activity,
+            "blockers": [{"id": row.id, "task": row.task_id.name, "problem": row.problem, "state": row.state, "status": "Open" if row.state == "open" else "Resolved",
+                          "resolution": row.resolution or ""} for row in blockers],
+            "instructions": [{"id": task.id, "task": task.name, "note": task.review_note, "by": task.sudo().reviewed_by_id.name or task.sudo().assigned_by_id.name}
+                             for task in working.filtered(lambda task: task.state == "changes_requested" and task.review_note)],
+        }
+
+    @api.model
     def _managed_tasks(self, branch):
         """The tasks Task Management shows: the branch's tasks, except the manager's own (those are in My Tasks)."""
         return self.search([("warehouse_id", "=", branch.id), ("assigned_user_id", "!=", self.env.user.id),
@@ -407,7 +440,9 @@ class StrategicBranchTask(models.Model):
                 note = "Branch Manager"
             else:
                 note = "Cannot receive tasks: no Strategic Management employee access"
+        employee = self.env["hr.employee"].sudo().search([("user_id", "=", user.id), ("company_id", "=", self.env.company.id)], limit=1)
         return {"id": user.id, "name": user.name, "can_receive_tasks": user in assignable, "note": note, "counts": self._counts(tasks),
+                "position": employee.job_id.name or employee.job_title or False, "has_employee": bool(employee),
                 "branch": user.sudo().strategic_branch_warehouse_id.display_name or False, "role": "Employee", "department_ids": user.sudo().strategic_department_ids.ids,
                 # Same rule as set_employee_departments: managers keep their role's own access.
                 "can_assign_departments": user.has_group(_EMPLOYEE) and not user.has_group(_MANAGER) and bool(user.sudo().strategic_branch_warehouse_id),
@@ -431,7 +466,30 @@ class StrategicBranchTask(models.Model):
             "employees": employees,
             "without_login": without_login,
             "departments": [{"id": department.id, "name": department.name} for department in self.env["strategic.department"].sudo().search([])],
+            "positions": sorted(set(self.env["hr.job"].sudo().search([("company_id", "in", [False, self.env.company.id])]).mapped("name"))),
         }
+
+    @api.model
+    def set_employee_position(self, user_id, position):
+        """Head Office changes a person's job position; an unknown position is created, as registering an employee does."""
+        if not self._is_head_office():
+            raise AccessError("Positions are changed by Head Office.")
+        position = (position or "").strip() if isinstance(position, str) else ""
+        if not position or len(position) > 80:
+            raise ValidationError("Enter a position of at most 80 characters.")
+        if not isinstance(user_id, int) or isinstance(user_id, bool):
+            raise ValidationError("Choose an employee.")
+        employee = self.env["hr.employee"].sudo().search([("user_id", "=", user_id), ("company_id", "=", self.env.company.id)], limit=1)
+        if not employee:
+            raise UserError("This person has no employee record in the active company.")
+        Job = self.env["hr.job"].sudo()
+        job = Job.search([("name", "=", position), ("company_id", "in", [False, self.env.company.id])], limit=1) \
+            or Job.create({"name": position, "company_id": self.env.company.id})
+        before = employee.job_id.name or employee.job_title or "None"
+        if job != employee.job_id:
+            employee.write({"job_id": job.id, "job_title": job.name})
+            employee.message_post(body="Position changed by %s: %s → %s" % (self.env.user.name, before, job.name), subtype_xmlid="mail.mt_note")
+        return {"position": job.name}
 
     @api.model
     def get_employee_tasks(self, user_id):

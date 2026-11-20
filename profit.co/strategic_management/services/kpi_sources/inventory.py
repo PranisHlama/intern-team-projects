@@ -43,7 +43,8 @@ RECIPE_COVERAGE_CALCULATIONS = {"inventory_recipe_coverage_pct"}
 COUNT_PLAN_CALCULATIONS = {"inventory_count_plan_completion_pct"}
 WASTE_RECORDING_CALCULATIONS = {"inventory_waste_recording_pct"}
 INGREDIENT_USE_CALCULATIONS = {"inventory_ingredient_use_difference_quantity"}
-SUPPORTED_CALCULATIONS = (WASTE_CALCULATIONS | BALANCE_CALCULATIONS | FLOW_CALCULATIONS | RECONCILIATION_CALCULATIONS
+STOCK_OUT_CALCULATIONS = {"inventory_stock_out_products"}
+SUPPORTED_CALCULATIONS = (STOCK_OUT_CALCULATIONS | WASTE_CALCULATIONS | BALANCE_CALCULATIONS | FLOW_CALCULATIONS | RECONCILIATION_CALCULATIONS
                           | WASTE_VALUE_CALCULATIONS | COUNT_CALCULATIONS | STOCK_VALUE_CALCULATIONS
                           | RECIPE_COVERAGE_CALCULATIONS | COUNT_PLAN_CALCULATIONS | WASTE_RECORDING_CALCULATIONS
                           | INGREDIENT_USE_CALCULATIONS)
@@ -74,6 +75,8 @@ def collect_inventory_result(target, version):
         return _collect_recipe_coverage(target, version)
     if calc in COUNT_PLAN_CALCULATIONS:
         return _collect_count_plan_completion(target, version)
+    if calc in STOCK_OUT_CALCULATIONS:
+        return _collect_stock_outs(target, version)
     issue = (_validate_product_percent(target, version) if calc in WASTE_RECORDING_CALCULATIONS
              else validate_product_contract(target, version, "inventory"))
     if issue:
@@ -395,7 +398,6 @@ def _pending_pos_issue(moves):
 def _collect_historical_stock_balance(target, version, start_utc, end_utc, calc):
     env = target.env
     Quant = env["stock.quant"].sudo()
-    Location = env["stock.location"].sudo()
     locations, issue = _get_internal_scope_locations(target)
     if issue:
         return source_result(target, version, DATA_QUALITY, None, issue, "stock.quant+stock.move", Quant.browse())
@@ -1022,6 +1024,60 @@ def _collect_ingredient_use_difference(target, version, start_utc, end_utc):
 
 
 # ---------------------------------------------------------------- current stock snapshot (inventory monitoring)
+def _collect_stock_outs(target, version):
+    """Products with a minimum-stock rule whose stock in the branch reached zero or less at any time in the period.
+
+    Stock at the period start is reconstructed like closing stock (current quants minus later completed moves), then
+    each completed move in the period is replayed. Products without a rule are not judged: the rule says which products
+    a branch must not run out of.
+    """
+    env = target.env
+    Rule = env["stock.warehouse.orderpoint"].sudo()
+    if version.source_product_id:
+        return source_result(target, version, DATA_QUALITY, None,
+                             "Stock-outs are counted across products; do not select one product.", "stock.warehouse.orderpoint", Rule.browse())
+    issue = validate_scope(target)
+    start_utc, end_utc, issue = (None, None, issue) if issue else reporting_period_utc(target)
+    Move = env["stock.move"].sudo()
+    issue = issue or _validate_move_schema(Move)
+    if issue:
+        return source_result(target, version, DATA_QUALITY, None, issue, "stock.warehouse.orderpoint", Rule.browse())
+    now_utc = fields.Datetime.to_datetime(fields.Datetime.now())
+    if start_utc > now_utc:
+        return source_result(target, version, NOT_EVALUATED, None, "The period has not started yet.", "stock.warehouse.orderpoint", Rule.browse())
+    end_utc = min(end_utc, now_utc)
+    warehouses = target.warehouse_id if target.scope == "branch" else env["stock.warehouse"].sudo().search([("company_id", "=", target.company_id.id)])
+    rules = Rule.search([("company_id", "=", target.company_id.id), ("warehouse_id", "in", warehouses.ids)], order="warehouse_id, product_id, id")
+    if not rules:
+        return source_result(target, version, NOT_EVALUATED, None,
+                             "No minimum stock rules are set for this scope. Add one (Inventory > Operations > Replenishment) for "
+                             "each product the branch must not run out of.", "stock.warehouse.orderpoint", rules)
+    Quant, Location = env["stock.quant"].sudo(), env["stock.location"].sudo()
+    ran_out, all_moves = [], Move.browse()
+    for warehouse, product in sorted({(rule.warehouse_id, rule.product_id) for rule in rules}, key=lambda pair: (pair[0].id, pair[1].id)):
+        locations = Location.search([("id", "child_of", warehouse.view_location_id.id), ("usage", "=", "internal")])
+        scope_ids = set(locations.ids)
+        moves = Move.search([("company_id", "=", target.company_id.id), ("product_id", "=", product.id), ("state", "=", "done"),
+                             ("date", ">=", fields.Datetime.to_string(start_utc)),
+                             "|", ("location_id", "in", locations.ids), ("location_dest_id", "in", locations.ids)], order="date, id")
+        all_moves |= moves
+        balance = sum(Quant.search([("product_id", "=", product.id), ("location_id", "in", locations.ids)]).mapped("quantity"))
+        balance -= sum(_movement_delta(move, scope_ids) for move in moves)
+        out = product.uom_id.compare(balance, 0.0) <= 0
+        for move in moves:
+            if out or move.date >= end_utc:
+                break
+            balance += _movement_delta(move, scope_ids)
+            out = product.uom_id.compare(balance, 0.0) <= 0
+        if out:
+            ran_out.append("%s (%s)" % (product.display_name, warehouse.display_name))
+    detail = ": %s%s" % (", ".join(ran_out[:10]), " and %s more" % (len(ran_out) - 10) if len(ran_out) > 10 else "") if ran_out else ""
+    return source_result(target, version, VALID, float(len(ran_out)),
+                         "%s of %s products with a minimum stock rule had no stock at some point in the period%s."
+                         % (len(ran_out), len({(rule.warehouse_id, rule.product_id) for rule in rules}), detail),
+                         "stock.warehouse.orderpoint+stock.move", rules, all_moves)
+
+
 def _monitored_products(env, company, product=False, category=False):
     """Active storable products of the company, or one product, or a product category with its sub-categories."""
     domain = [("is_storable", "=", True), ("company_id", "in", [False, company.id])]

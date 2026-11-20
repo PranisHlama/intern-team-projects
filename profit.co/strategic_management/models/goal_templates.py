@@ -466,7 +466,38 @@ SALES_TEMPLATES = [
 ]
 for _template in SALES_TEMPLATES:
     _template["area"] = "sales_finance"
-TEMPLATES = TEMPLATES + INVENTORY_TEMPLATES + SALES_TEMPLATES
+
+# Café running costs, staffing and availability; each template names its own area.
+CAFE_TEMPLATES = [
+    {
+        "key": "food_cost", "area": "sales_finance", "group": "Profitability", "title": "Keep food cost under control",
+        "description": "The cost of what was sold stays below a percentage of net sales.",
+        "measure": "pos_food_cost_pct", "rule": "ceiling", "kind": "percent", "target_label": "Food cost at most (% of net sales)",
+        "apps": _POS, "status": "available",
+        "how": "Odoo's cost of every item sold in POS (taken when the session closes, refunds subtracted) divided by net "
+               "sales excluding tax. Shows waste, theft and over-portioning together. Every item sold needs a cost; for "
+               "drinks with a recipe use Compute Price from BoM, otherwise the goal names the products without a cost.",
+    },
+    {
+        "key": "sales_per_staff_hour", "area": "people", "group": "Staffing", "title": "Raise sales per staff hour",
+        "description": "Net sales per hour worked reach at least a target.",
+        "measure": "pos_sales_per_staff_hour", "rule": "at_least", "kind": "money", "target_label": "Sales per staff hour of at least",
+        "apps": _POS + ["attendance"], "status": "available",
+        "how": "Net POS sales excluding tax divided by the hours staff were checked in (Attendances), same period and "
+               "branch. Staff count for the branch set on their user. A shift without a check-out gives no result until it "
+               "is closed. Low values point to quiet shifts with too many staff.",
+    },
+    {
+        "key": "stock_outs", "area": "operations", "group": "Availability", "title": "Avoid running out of stock",
+        "description": "Few of the products the branch must keep in stock run out during the period.",
+        "measure": "inventory_stock_out_products", "rule": "ceiling", "kind": "quantity",
+        "target_label": "At most (products that ran out)", "apps": _INVENTORY, "status": "available",
+        "how": "Counts products with a minimum stock rule whose stock in the branch reached zero at any time in the "
+               "period, rebuilt from completed stock moves. Products without a rule are not judged, so add a rule "
+               "(Inventory > Operations > Replenishment) for each product you must not run out of.",
+    },
+]
+TEMPLATES = TEMPLATES + INVENTORY_TEMPLATES + SALES_TEMPLATES + CAFE_TEMPLATES
 TEMPLATE_BY_KEY = {template["key"]: template for template in TEMPLATES}
 TEMPLATE_AREAS = {template["area"] for template in TEMPLATES}
 

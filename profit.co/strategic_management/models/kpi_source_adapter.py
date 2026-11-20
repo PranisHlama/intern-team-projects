@@ -28,6 +28,8 @@ _SOURCE_ADAPTERS = {
         "pos_average_order_value",
         "pos_product_net_sales",
         "pos_average_unit_price",
+        "pos_food_cost_pct",
+        "pos_sales_per_staff_hour",
         "pos_sold_quantity",
         "pos_recipe_consumption_estimate",
     },
@@ -64,6 +66,7 @@ _SOURCE_ADAPTERS = {
         "inventory_count_plan_completion_pct",
         "inventory_waste_recording_pct",
         "inventory_ingredient_use_difference_quantity",
+        "inventory_stock_out_products",
     },
 }
 # Limits judged over the whole period: an interim value must not be stored as the result.
@@ -72,7 +75,7 @@ _FINAL_ONLY_CALCULATIONS = {
     "purchase_top_supplier_share_pct", "purchase_outstanding_amount", "purchase_average_receipt_lead_days",
     "purchase_on_time_delivery_count_pct", "purchase_average_delivery_delay_days", "accounting_overdue_supplier_bills_amount",
     "inventory_waste_cost_amount", "inventory_waste_cost_to_sales_pct", "inventory_count_difference_quantity",
-    "inventory_recorded_waste_cost", "purchase_average_unit_price",
+    "inventory_recorded_waste_cost", "purchase_average_unit_price", "pos_food_cost_pct", "inventory_stock_out_products",
 }
 # Calculations scored by the supplier-delivery collector (promised-date baseline cohort).
 DELIVERY_CALCULATIONS = {

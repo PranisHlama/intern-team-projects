@@ -24,7 +24,8 @@ DATA_QUALITY = "data_quality_issue"
 POS_SALE_STATES = ["paid", "done"]
 # Sales amounts in company currency; only pos_product_net_sales tracks a product.
 SALES_CALCULATIONS = {"pos_net_sales", "pos_sales_growth_pct", "pos_average_order_value", "pos_product_net_sales",
-                      "pos_average_unit_price"}
+                      "pos_average_unit_price", "pos_food_cost_pct", "pos_sales_per_staff_hour"}
+_PERCENT_SALES_CALCULATIONS = {"pos_sales_growth_pct", "pos_food_cost_pct"}
 _PRODUCT_SALES_CALCULATIONS = {"pos_product_net_sales", "pos_average_unit_price"}
 _SUPPORTED_CALCULATIONS = {
     "pos_net_sales",
@@ -32,6 +33,8 @@ _SUPPORTED_CALCULATIONS = {
     "pos_average_order_value",
     "pos_product_net_sales",
     "pos_average_unit_price",
+    "pos_food_cost_pct",
+    "pos_sales_per_staff_hour",
     "pos_sold_quantity",
     "pos_recipe_consumption_estimate",
 }
@@ -290,19 +293,39 @@ def window_sales(env, company, date_from, date_to, window_start, window_end, war
             "products": sorted(products.values(), key=lambda item: (-item["qty"], item["name"])), "facts": facts}
 
 
+def _collect_window_sales(target, version, warehouse):
+    """Net sales or average order value limited to the version's hours of the day, through window_sales."""
+    env, calc = target.env, version.calculation_type
+    data = window_sales(env, target.company_id, target.date_start, target.date_end, version.time_window_start, version.time_window_end, warehouse)
+    if data["problem"]:
+        return _result(target, version, DATA_QUALITY, None, data["problem"], "pos.order", [], [])
+    orders = env["pos.order"].sudo().browse(fact["order"].id for fact in data["facts"])
+    tokens, refs = _record_tokens(orders), _refs(orders)
+    label = "%s to %s company time" % tuple("%02d:%02d" % (int(hour), round((hour - int(hour)) * 60)) for hour in (version.time_window_start, version.time_window_end))
+    if not orders:
+        return _result(target, version, NOT_EVALUATED, None,
+                       "No paid or posted POS orders were found between %s for this scope and period; zero sales have not been assumed." % label, "pos.order", tokens, refs)
+    total, count = data["total"]["revenue"], data["total"]["orders"]
+    if calc == "pos_net_sales":
+        return _result(target, version, VALID, total, "Net sales excluding tax between %s from %s POS orders; refunds are subtracted." % (label, len(orders)), "pos.order", tokens, refs)
+    if not count:
+        return _result(target, version, NOT_EVALUATED, None, "There were only refunds between %s, so no average can be calculated." % label, "pos.order", tokens, refs)
+    return _result(target, version, VALID, total / count, "Net sales excluding tax between %s (%.2f) divided by %s customer orders." % (label, total, count), "pos.order", tokens, refs)
+
+
 def _collect_sales(target, version):
     calc = version.calculation_type
     env = target.env
     company = target.company_id
     currency = company.currency_id
     unit = (version.unit or "").strip()
-    if calc == "pos_sales_growth_pct" and unit != "%":
-        return _result(target, version, DATA_QUALITY, None, "Sales growth must use the % unit.", "", [], [])
+    if calc in _PERCENT_SALES_CALCULATIONS and unit != "%":
+        return _result(target, version, DATA_QUALITY, None, "This measure must use the % unit.", "", [], [])
     if calc == "pos_average_unit_price":
         problem = validate_unit_price_contract(target, version, "pos")
         if problem:
             return _result(target, version, DATA_QUALITY, None, problem, "", [], [])
-    elif calc != "pos_sales_growth_pct" and unit not in {(currency.symbol or "").strip(), (currency.name or "").strip()} - {""}:
+    elif calc not in _PERCENT_SALES_CALCULATIONS and unit not in {(currency.symbol or "").strip(), (currency.name or "").strip()} - {""}:
         return _result(target, version, DATA_QUALITY, None,
                        "Sales amounts must use the company currency unit (%s)." % (currency.symbol or currency.name), "", [], [])
     if (calc in _PRODUCT_SALES_CALCULATIONS) != bool(version.source_product_id):
@@ -317,6 +340,9 @@ def _collect_sales(target, version):
     if problem:
         return _result(target, version, DATA_QUALITY, None, problem, "", [], [])
     warehouse = target.warehouse_id if target.scope == "branch" else False
+    # Goal set-up previews pass a stand-in version without this field; those are never time-limited.
+    if getattr(version, "has_time_window", False):
+        return _collect_window_sales(target, version, warehouse)
     if calc == "pos_sales_growth_pct" and end_utc > fields.Datetime.to_datetime(fields.Datetime.now()):
         return _result(target, version, NOT_EVALUATED, None,
                        "Growth is compared once the period has ended; a partial period would not be comparable.", "", [], [])
@@ -342,6 +368,10 @@ def _collect_sales(target, version):
         return _result(target, version, VALID, total / count,
                        "Net sales excluding tax (%.2f, refunds subtracted) divided by %s customer orders; refund orders are "
                        "not counted as orders." % (total, count), "pos.order", tokens, refs)
+    if calc == "pos_food_cost_pct":
+        return _food_cost(target, version, orders, total, tokens, refs)
+    if calc == "pos_sales_per_staff_hour":
+        return _sales_per_staff_hour(target, version, warehouse, start_utc, end_utc, total, tokens, refs)
     if calc == "pos_average_unit_price":
         product = version.source_product_id
         lines = env["pos.order.line"].sudo().search([
@@ -381,6 +411,58 @@ def _collect_sales(target, version):
     return _result(target, version, VALID, (total - baseline) / baseline * 100.0,
                    "Net sales %.2f compared with %.2f in the previous period (%s to %s), same scope and rules."
                    % (total, baseline, previous_start, previous_end), "pos.order", tokens, refs)
+
+
+def _food_cost(target, version, orders, total, tokens, refs):
+    """Cost of what was sold (Odoo's cost of each POS line, refunds subtracted) as a % of net sales excluding tax."""
+    lines = target.env["pos.order.line"].sudo().search([("order_id", "in", orders.ids)], order="order_id, id")
+    tokens, refs = tokens + _record_tokens(lines), _refs(orders, lines)
+    pending = lines.filtered(lambda line: not line.is_total_cost_computed)
+    if pending:
+        return _result(target, version, NOT_EVALUATED, None,
+                       "%s sold lines have no cost yet because their POS session is still open; close the sessions first."
+                       % len(pending), "pos.order.line", tokens, refs)
+    # A sold item without a cost would make food cost look lower than it is.
+    no_cost = lines.filtered(lambda line: line.qty > 0 and line.price_subtotal > 0 and not line.total_cost).product_id
+    if no_cost:
+        return _result(target, version, DATA_QUALITY, None,
+                       "These products were sold without a cost, so food cost would be understated: %s. Set their cost "
+                       "(for drinks with a recipe: Compute Price from BoM)." % ", ".join(no_cost.mapped("display_name")[:10]),
+                       "pos.order.line", tokens, refs)
+    if total <= 0:
+        return _result(target, version, NOT_EVALUATED, None,
+                       "There were no net sales in this period, so no food cost % can be calculated.", "pos.order.line", tokens, refs)
+    cost = float(sum(lines.mapped("total_cost")))
+    return _result(target, version, VALID, cost / total * 100.0,
+                   "Cost of the items sold (%.2f, Odoo's product cost when each sale was closed, refunds subtracted) divided by "
+                   "net sales excluding tax (%.2f)." % (cost, total), "pos.order.line", tokens, refs)
+
+
+def _sales_per_staff_hour(target, version, warehouse, start_utc, end_utc, total, tokens, refs):
+    """Net sales excluding tax divided by the hours staff were checked in (Attendances), same period and scope."""
+    env = target.env
+    if "hr.attendance" not in env.registry.models:
+        return _result(target, version, DATA_QUALITY, None,
+                       "The Attendances app is not installed, so staff hours are unknown.", "", tokens, refs)
+    domain = [("check_in", ">=", fields.Datetime.to_string(start_utc)), ("check_in", "<", fields.Datetime.to_string(end_utc)),
+              ("employee_id.company_id", "=", target.company_id.id)]
+    if warehouse:
+        # Staff belong to a branch through their user account, as on the People page.
+        domain.append(("employee_id.user_id.strategic_branch_warehouse_id", "=", warehouse.id))
+    attendances = env["hr.attendance"].sudo().search(domain, order="check_in, id")
+    tokens = tokens + _record_tokens(attendances)
+    open_shifts = attendances.filtered(lambda attendance: not attendance.check_out)
+    if open_shifts:
+        return _result(target, version, NOT_EVALUATED, None,
+                       "%s attendances have no check-out yet, so the hours worked are incomplete." % len(open_shifts),
+                       "hr.attendance", tokens, refs)
+    hours = float(sum(attendances.mapped("worked_hours")))
+    if hours <= 0:
+        return _result(target, version, NOT_EVALUATED, None,
+                       "No staff hours were recorded in Attendances for this scope and period.", "hr.attendance", tokens, refs)
+    return _result(target, version, VALID, total / hours,
+                   "Net sales excluding tax (%.2f) divided by %.1f hours staff were checked in (%s attendances)."
+                   % (total, hours, len(attendances)), "hr.attendance", tokens, refs)
 
 
 def _collect_recipe_consumption(target, version, orders, Line):

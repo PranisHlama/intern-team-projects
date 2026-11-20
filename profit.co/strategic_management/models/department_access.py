@@ -157,7 +157,7 @@ class StrategicPerformanceDashboardDepartments(models.AbstractModel):
                 raise AccessError("This person is not one of your branch's employees.")
         else:
             self._require_department_admin()
-        valid_int = lambda value: isinstance(value, int) and not isinstance(value, bool)
+        valid_int = lambda value: isinstance(value, int) and not isinstance(value, bool) and value > 0
         if not valid_int(user_id) or not isinstance(department_ids, list) or not all(valid_int(value) for value in department_ids):
             raise ValidationError("Choose an employee and valid departments.")
         target = self._assignable_department_users().filtered(lambda user: user.id == user_id)

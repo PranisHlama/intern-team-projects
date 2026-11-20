@@ -62,11 +62,6 @@ class HrEmployee(models.Model):
     # Backs up the check in register_employee for parallel registrations; other employees' existing data is not touched.
     _strategic_staffing_email_unique = models.UniqueIndex("(lower(work_email)) WHERE strategic_staffing_request_id IS NOT NULL", "An employee with this work email already exists.")
 
-    def _strategic_branch(self):
-        self.ensure_one()
-        employee = self.sudo()
-        return employee.user_id.strategic_branch_warehouse_id if employee.user_id else employee.strategic_branch_warehouse_id
-
 
 class StrategicStaffingRequest(models.Model):
     _name = "strategic.staffing.request"
@@ -264,6 +259,9 @@ class StrategicStaffingRequest(models.Model):
             "department_id": department.id or False, "parent_id": manager.id or False, "company_id": request.company_id.id,
             "strategic_branch_warehouse_id": request.warehouse_id.id, "strategic_staffing_request_id": request.id})
         request.message_post(body="Employee registered: %s" % name, subtype_xmlid="mail.mt_note")
+        if len(request.with_context(active_test=False).employee_ids) >= request.quantity:
+            # Nothing is left to do on a filled request, so its to-dos stop showing as open or overdue.
+            request.activity_ids.action_feedback(feedback="All employees registered.")
         return request._row() | {"new_employee_id": employee.id}
 
     @api.model
@@ -433,7 +431,25 @@ class StrategicPerformanceDashboardStaffing(models.AbstractModel):
         """The signed-in person's own task figures. Manager assessments are not included."""
         start, end = self._period(date_start, date_end)
         tasks = self.env["strategic.branch.task"].search([("assigned_user_id", "=", self.env.user.id), ("company_id", "=", self.env.company.id)])
-        return {"figures": self._task_performance(tasks, start, end), "period": {"start": fields.Date.to_string(start), "end": fields.Date.to_string(end)}}
+        figures = self._task_performance(tasks, start, end)
+        figures["blockers"] = self._reported_blockers(self.env.user, tasks, start, end)
+        in_period = tasks.sudo().filtered(lambda task: start <= task.date_deadline <= end and task.state != "cancelled")
+        months = {}
+        for task in in_period.sorted("date_deadline"):
+            row = months.setdefault(task.date_deadline.strftime("%Y-%m"), {"month": task.date_deadline.strftime("%B %Y"), "assigned": 0, "completed": 0, "on_time": 0})
+            row["assigned"] += 1
+            row["completed"] += task.state == "done"
+            row["on_time"] += task.state == "done" and task.submitted_on_time
+        feedback = in_period.filtered("review_note").sorted(lambda task: task.reviewed_at or task.write_date, reverse=True)[:10]
+        role_employee = self._strategic_role() == "employee"
+        return {
+            "figures": figures, "period": {"start": fields.Date.to_string(start), "end": fields.Date.to_string(end)},
+            "history": list(months.values()),
+            "feedback": [{"id": task.id, "task": task.name, "note": task.review_note, "by": task.reviewed_by_id.name or "", "state": task.state,
+                          "at": fields.Datetime.to_string(task.reviewed_at) if task.reviewed_at else False} for task in feedback],
+            # Only KPIs with one individual owner; organization and branch results never appear here.
+            "individual_kpis": self.get_employee_data(date_start, date_end)["kpis"] if role_employee else [],
+        }
 
     @api.model
     def save_employee_assessment(self, user_id, values, date_start=False, date_end=False):

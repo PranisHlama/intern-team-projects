@@ -6,7 +6,7 @@
               name="Strategic Management"
               action="action_strategic_navigation_shell"
               sequence="45"
-              groups="strategic_management.group_strategic_head_office_manager,strategic_management.group_strategic_branch_manager,strategic_management.group_strategic_employee"/>
+              groups="strategic_management.group_strategic_admin,strategic_management.group_strategic_head_office_manager,strategic_management.group_strategic_branch_manager,strategic_management.group_strategic_employee"/>
 
     <!-- Strategy and KPI records live inside the app so Head Office and Branch Managers
          can reach them without Odoo administrator rights; each child keeps its own groups.
@@ -16,6 +16,11 @@
               parent="menu_strategic_management_root"
               sequence="90"
               groups="strategic_management.group_strategic_head_office_manager,strategic_management.group_strategic_branch_manager,-strategic_management.group_strategic_employee"/>
+
+    <!-- Off the top bar only: every model, record and action below stays, and a system administrator can reactivate it. -->
+    <record id="menu_strategic_management_technical" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
     <!-- Top-bar shortcut to Objectives: Head Office and Branch Managers only -->
     <menuitem id="menu_strategic_objective_top"
@@ -92,23 +97,12 @@
               sequence="20"
               groups="strategic_management.group_strategic_branch_manager"/>
 
-    <menuitem id="menu_strategic_kpi_dashboard_employee"
-              name="My KPI Dashboard"
-              parent="menu_strategic_kpi_dashboards"
-              action="action_strategic_employee_dashboard"
-              sequence="30"
-              groups="strategic_management.group_strategic_employee"/>
-
     <record id="menu_strategic_kpi_dashboard_head_office" model="ir.ui.menu">
         <field name="group_ids" eval="[(6, 0, [ref('group_strategic_head_office_manager')])]"/>
     </record>
     <record id="menu_strategic_kpi_dashboard_branch" model="ir.ui.menu">
         <field name="group_ids" eval="[(6, 0, [ref('group_strategic_branch_manager')])]"/>
     </record>
-    <record id="menu_strategic_kpi_dashboard_employee" model="ir.ui.menu">
-        <field name="group_ids" eval="[(6, 0, [ref('group_strategic_employee')])]"/>
-    </record>
-
     <!-- Strategy: Head Office and Branch Managers only -->
     <menuitem id="menu_strategic_management_strategy"
               name="Strategy"

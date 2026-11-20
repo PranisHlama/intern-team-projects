@@ -13,6 +13,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from odoo import api, fields, models
+from odoo.exceptions import AccessError, ValidationError
 
 from .business_overview import _LIST_LIMIT
 
@@ -22,8 +23,79 @@ _WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _UTC = ZoneInfo("UTC")
 
 
+_ROLE_GROUPS = {
+    "head_office": "strategic_management.group_strategic_head_office_manager",
+    "admin": "strategic_management.group_strategic_admin",
+    "branch_manager": "strategic_management.group_strategic_branch_manager",
+    "employee": "strategic_management.group_strategic_employee",
+}
+_ROLE_LABELS = {"head_office": "Head Office Manager", "admin": "Admin", "branch_manager": "Branch Manager", "employee": "Employee"}
+
+
 class StrategicPerformanceDashboardPeople(models.AbstractModel):
     _inherit = "strategic.performance.dashboard"
+
+    # ------------------------------------------------------------------ roles
+    @api.model
+    def _require_role_admin(self):
+        if self._strategic_role() != "head_office":
+            raise AccessError("Roles are managed by Head Office.")
+
+    @api.model
+    def _user_role_name(self, user):
+        # Same precedence as _strategic_role_name; None for a user who holds no Strategic Management role.
+        return next((role for role in ("admin", "head_office", "branch_manager", "employee") if user.has_group(_ROLE_GROUPS[role])), None)
+
+    @api.model
+    def _role_row(self, user):
+        role = self._user_role_name(user)
+        return {"id": user.id, "name": user.name, "login": user.login, "role": role or False, "role_label": _ROLE_LABELS.get(role, "No role"),
+                "branch_id": user.strategic_branch_warehouse_id.id, "branch": user.strategic_branch_warehouse_id.display_name or False,
+                "department_ids": user.strategic_department_ids.ids, "departments": user.strategic_department_ids.mapped("name"), "can_change": user != self.env.user}
+
+    @api.model
+    def _role_users(self):
+        return self.env["res.users"].sudo().search([("active", "=", True), ("share", "=", False), ("company_ids", "in", self.env.company.id)], order="name, id")
+
+    @api.model
+    def get_role_assignments(self):
+        """People with a login and their role, for Head Office's People page."""
+        self._require_role_admin()
+        return {"people": [self._role_row(user) for user in self._role_users()],
+                "roles": [{"id": key, "name": label} for key, label in _ROLE_LABELS.items()],
+                "departments": [{"id": department.id, "name": department.name} for department in self.env["strategic.department"].sudo().search([], order="sequence, id")],
+                "branches": [{"id": branch.id, "name": branch.display_name} for branch in self.env["stock.warehouse"].search([("company_id", "=", self.env.company.id)], order="name")]}
+
+    @api.model
+    def set_user_role(self, user_id, role, warehouse_id=False, department_ids=None):
+        """Replace a person's Strategic Management role, and for an Employee their departments when given. Other roles keep their
+        departments untouched; they apply again if the person returns to Employee."""
+        self._require_role_admin()
+        if role not in _ROLE_GROUPS:
+            raise ValidationError("Choose a valid role.")
+        target = self._role_users().filtered(lambda user: user.id == user_id) if isinstance(user_id, int) and not isinstance(user_id, bool) else self.env["res.users"]
+        if not target:
+            raise AccessError("This person is not in the active company.")
+        if target == self.env.user:
+            raise ValidationError("You cannot change your own role; ask another Head Office Manager.")
+        if role == "admin" and target.has_group("base.group_system"):
+            raise ValidationError("%s is an Odoo system administrator, which would bypass the Admin role's restrictions." % target.name)
+        branch = self.env["stock.warehouse"]
+        if warehouse_id:
+            branch = self.env["stock.warehouse"].sudo().browse(int(warehouse_id)).exists()
+            if not branch or branch.company_id != self.env.company:
+                raise ValidationError("Choose a branch of this company.")
+        if role == "branch_manager" and not (branch or target.strategic_branch_warehouse_id):
+            raise ValidationError("A Branch Manager needs a branch.")
+        commands = [(3, self.env.ref(xmlid).id) for xmlid in _ROLE_GROUPS.values()] + [(4, self.env.ref(_ROLE_GROUPS[role]).id)]
+        # App rights follow in res.users.write, whichever path changes the role.
+        values = {"group_ids": commands}
+        if branch and role in ("branch_manager", "employee"):
+            values["strategic_branch_warehouse_id"] = branch.id
+        target.write(values)
+        if role == "employee" and department_ids is not None:
+            self.set_employee_departments(target.id, department_ids)  # same checks as Department Assignment, same transaction
+        return self._role_row(target)
 
     @api.model
     def get_people_overview_data(self, date_start=False, date_end=False, warehouse_id=False):
@@ -110,9 +182,12 @@ class StrategicPerformanceDashboardPeople(models.AbstractModel):
             {"day": label, **weekday_counts[index]} for index, label in enumerate(_WEEKDAYS)
         ] if attendance_installed else []
 
-        actions, workload = self._people_tasks(staff_users, start, end, today)
+        actions, workload, open_ids, overdue_ids = self._people_tasks(staff_users, start, end, today)
         result["actions"] = actions
         result["workload"] = workload
+        # The task cards open Odoo's activity list of exactly the activities they count (Odoo's rules still apply).
+        result["drill"] = {"open_tasks": self._overview_drill("mail.activity", [], "Open tasks", ids=open_ids),
+                           "overdue_tasks": self._overview_drill("mail.activity", [], "Overdue tasks", ids=overdue_ids)}
 
         attention = []
         for row in staffing:
@@ -255,7 +330,7 @@ class StrategicPerformanceDashboardPeople(models.AbstractModel):
         Activity = self.env["mail.activity"].sudo()
         activities = Activity.search([("user_id", "in", staff_users.ids)], order="date_deadline asc, id asc")
         workload = defaultdict(lambda: {"open": 0, "overdue": 0, "oldest_overdue": False})
-        actions = []
+        actions, overdue_ids = [], []
         for activity in activities:
             user = activity.user_id
             bucket = workload[user.id]
@@ -263,6 +338,7 @@ class StrategicPerformanceDashboardPeople(models.AbstractModel):
             bucket["open"] += 1
             if activity.date_deadline < today:
                 bucket["overdue"] += 1
+                overdue_ids.append(activity.id)
                 if not bucket["oldest_overdue"] or fields.Date.to_string(activity.date_deadline) < bucket["oldest_overdue"]:
                     bucket["oldest_overdue"] = fields.Date.to_string(activity.date_deadline)
             if len(actions) < 15:
@@ -273,6 +349,7 @@ class StrategicPerformanceDashboardPeople(models.AbstractModel):
                     "branch": user.strategic_branch_warehouse_id.display_name or "Unassigned",
                     "due_date": fields.Date.to_string(activity.date_deadline),
                     "status": "Overdue" if activity.date_deadline < today else "Due today" if activity.date_deadline == today else "Planned",
+                    **self._people_openable(activity.res_model, activity.res_id),
                 })
         # Completed activities become chatter messages carrying their activity type.
         start_utc, end_utc = self._overview_utc_bounds(start, end)
@@ -292,12 +369,18 @@ class StrategicPerformanceDashboardPeople(models.AbstractModel):
                 "branch": user.strategic_branch_warehouse_id.display_name if user and user.strategic_branch_warehouse_id else "Unassigned",
                 "due_date": fields.Date.to_string(fields.Datetime.context_timestamp(self, message.date).date()),
                 "status": "Done",
+                **self._people_openable(message.model, message.res_id),
             })
         workload_rows = sorted(
             ({"user_id": user_id, **values} for user_id, values in workload.items()),
             key=lambda row: (-row["overdue"], -row["open"], row["name"]),
         )
-        return actions, workload_rows
+        return actions, workload_rows, activities.ids, overdue_ids
+
+    @api.model
+    def _people_openable(self, model, res_id):
+        """The record a task row opens, only when this user may open it (the rows themselves are read as the system)."""
+        return {"res_model": model, "res_id": res_id} if self._can_open_record(model, res_id) else {}
 
     @api.model
     def _people_insights(self, staffing, exceptions, workload, by_weekday):
