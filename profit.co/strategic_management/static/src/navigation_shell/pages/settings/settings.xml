@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Settings (Head Office). Called from strategic_management.ReportsSettingsPage. -->
+<templates xml:space="preserve">
+    <t t-name="strategic_management.SettingsPanel">
+        <t t-set="s" t-value="this.state.settings"/>
+        <p t-if="this.state.settingsError" class="o_sm_br_notice is-error" role="alert" t-esc="this.state.settingsError"/>
+        <p t-elif="!s" class="o_sm_br_notice">Loading settings…</p>
+        <div t-else="" class="o_sm_set">
+            <section class="o_sm_set_card" aria-labelledby="o_sm_set_company">
+                <header><h2 id="o_sm_set_company">Company</h2><p>What printed reports show at the top.</p></header>
+                <div class="o_sm_set_company">
+                    <div class="o_sm_set_logo">
+                        <img t-if="s.profile.logoPreview" t-att-src="s.profile.logoPreview" alt="New logo"/>
+                        <img t-elif="s.profile.has_logo" src="/web/binary/company_logo" alt="Company logo"/>
+                        <span t-else="">No logo yet</span>
+                        <label class="o_sm_set_btn">Upload logo<input type="file" accept="image/*" class="visually-hidden" t-on-change="(ev) => this.onLogoPicked(ev)"/></label>
+                        <button t-if="s.profile.has_logo or s.profile.logoPreview" type="button" class="o_sm_set_link" t-on-click="() => this.removeLogo()">Remove</button>
+                    </div>
+                    <div class="o_sm_set_fields">
+                        <label>Company name<input type="text" t-att-value="s.profile.name" t-on-input="(ev) => { s.profile.name = ev.target.value; }"/></label>
+                        <label>Street<input type="text" t-att-value="s.profile.street" t-on-input="(ev) => { s.profile.street = ev.target.value; }"/></label>
+                        <div class="o_sm_set_row">
+                            <label>City<input type="text" t-att-value="s.profile.city" t-on-input="(ev) => { s.profile.city = ev.target.value; }"/></label>
+                            <label>Postcode<input type="text" t-att-value="s.profile.zip" t-on-input="(ev) => { s.profile.zip = ev.target.value; }"/></label>
+                        </div>
+                        <div class="o_sm_set_row">
+                            <label>Country<select t-on-change="(ev) => { s.profile.country_id = Number(ev.target.value) || false; }">
+                                <option value="">—</option>
+                                <option t-foreach="s.countries" t-as="c" t-key="c.id" t-att-value="c.id" t-att-selected="c.id === s.profile.country_id" t-esc="c.name"/>
+                            </select></label>
+                            <label>Time zone<select t-on-change="(ev) => { s.profile.tz = ev.target.value; }">
+                                <option value="">—</option>
+                                <option t-foreach="s.timezones" t-as="tz" t-key="tz" t-att-value="tz" t-att-selected="tz === s.profile.tz" t-esc="tz"/>
+                            </select></label>
+                        </div>
+                        <div class="o_sm_set_row">
+                            <label>Phone<input type="text" t-att-value="s.profile.phone" t-on-input="(ev) => { s.profile.phone = ev.target.value; }"/></label>
+                            <label>Email<input type="email" t-att-value="s.profile.email" t-on-input="(ev) => { s.profile.email = ev.target.value; }"/></label>
+                        </div>
+                        <p class="o_sm_set_hint">Currency: <strong t-esc="s.profile.currency"/> (set in Odoo's accounting settings).</p>
+                        <div><button type="button" class="o_sm_set_btn is-primary" t-att-disabled="s.saving" t-on-click="() => this.saveCompanyProfile()">Save company details</button></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="o_sm_set_card" aria-labelledby="o_sm_set_auto">
+                <header><h2 id="o_sm_set_auto">Automatic reports &amp; reminders</h2><p>Turning a feature off stops it from now on; nothing already created is deleted.</p></header>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_monthly_reports'" label="'Monthly branch reports'" hint="'On the 1st, each branch gets last month’s report to complete and submit.'"/>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_report_submit_days'" label="'Days to submit it'" unit="'days'" min="1" max="28" off="!s.draft.sm_monthly_reports"/>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_due_soon_reminders'" label="'Objective due-soon reminders'" hint="'The owner gets a To-Do before an objective is due. The Branch Manager dashboard uses the same number.'"/>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_due_soon_days'" label="'Remind'" unit="'days before'" min="1" max="60" off="!s.draft.sm_due_soon_reminders"/>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_due_result_notes'" label="'Due-date result notes'" hint="'When an objective’s due date passes, its result is noted and Head Office gets a To-Do.'"/>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_achievement_reports'" label="'Achievement reports'" hint="'Completing an objective saves what was achieved as a report (Reports → Achievements).'"/>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_company_reports'" label="'Monthly company report'" hint="'On the 1st, Head Office gets last month’s figures for every branch in one report, with the PDF (Reports → Company).'"/>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_nightly_hour'" label="'Nightly update runs at'" unit="':00, company time'" min="0" max="23" off="false"/>
+                <p t-if="s.next_run" class="o_sm_set_hint">Next run: <t t-esc="this.nextRunLabel()"/></p>
+            </section>
+
+            <section class="o_sm_set_card" aria-labelledby="o_sm_set_results">
+                <header><h2 id="o_sm_set_results">Targets &amp; alerts</h2><p>How results and warnings are judged. Past results keep the status they were given.</p></header>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_almost_met_pct'" label="'&quot;Almost met&quot; starts at'" unit="'% of target'" min="1" max="99" off="false"/>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_expiring_days'" label="'Stock counts as expiring within'" unit="'days'" min="1" max="90" off="false"/>
+                <t t-call="strategic_management.SettingsNumber" key="'sm_late_critical_days'" label="'A late delivery is critical after'" unit="'days'" min="1" max="60" off="false"/>
+            </section>
+
+            <section class="o_sm_set_card" aria-labelledby="o_sm_set_people">
+                <header><h2 id="o_sm_set_people">Permissions &amp; behaviour</h2></header>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_bm_can_propose'" label="'Branch Managers can propose objectives'" hint="'Off: the Propose Objective button is hidden and proposals are refused.'"/>
+                <t t-call="strategic_management.SettingsSwitch" key="'sm_live_refresh'" label="'Live page refresh'" hint="'Pages update by themselves when sales, stock or tasks change. Turn off if the server is slow.'"/>
+            </section>
+
+            <section class="o_sm_set_card" aria-labelledby="o_sm_set_email">
+                <header><h2 id="o_sm_set_email">Email</h2><p>Notifications, reminders and report alerts are emailed through this server, as well as shown in the app.</p></header>
+                <p t-if="s.email.ready" class="o_sm_set_status is-ok">Email is set up: <t t-esc="s.email.servers.join(', ')"/>. Use "Send test email" to check it works.</p>
+                <p t-elif="s.email.configured" class="o_sm_set_status is-warn">A mail server is saved but has no password, so emails can't be sent. Enter the password (for Gmail, an App Password) and save.</p>
+                <p t-else="" class="o_sm_set_status is-warn">Email isn't set up yet: notifications stay in the app until a server is saved below.</p>
+                <p t-if="s.email.failed" class="o_sm_set_hint"><t t-esc="s.email.failed"/> email(s) could not be sent so far; they stay in the app as notifications.</p>
+                <div class="o_sm_set_fields">
+                    <div class="o_sm_set_row">
+                        <label>Mail server<input type="text" placeholder="smtp.gmail.com" autocomplete="off" t-att-value="s.mail.host" t-on-input="(ev) => { s.mail.host = ev.target.value; }"/></label>
+                        <label>Port<input type="number" min="1" max="65535" t-att-value="s.mail.port" t-on-input="(ev) => { s.mail.port = ev.target.value; }"/></label>
+                        <label>Security<select t-on-change="(ev) => { s.mail.encryption = ev.target.value; }">
+                            <option value="starttls" t-att-selected="s.mail.encryption === 'starttls'">STARTTLS (port 587)</option>
+                            <option value="ssl" t-att-selected="s.mail.encryption === 'ssl'">SSL/TLS (port 465)</option>
+                            <option value="none" t-att-selected="s.mail.encryption === 'none'">None</option>
+                        </select></label>
+                    </div>
+                    <div class="o_sm_set_row">
+                        <label>Username (email address)<input type="email" autocomplete="off" t-att-value="s.mail.user" t-on-input="(ev) => { s.mail.user = ev.target.value; }"/></label>
+                        <label>Password<input type="password" autocomplete="new-password" t-att-placeholder="s.mail.has_password ? 'Saved (leave blank to keep it)' : 'App password'" t-att-value="s.mail.password" t-on-input="(ev) => { s.mail.password = ev.target.value; }"/></label>
+                    </div>
+                    <p class="o_sm_set_hint">Gmail: server smtp.gmail.com, port 587, STARTTLS, your Gmail address, and an App Password (Google Account → Security → 2-Step Verification → App passwords), not your normal password. Mail is sent from that address.</p>
+                    <div>
+                        <button type="button" class="o_sm_set_btn is-primary" t-att-disabled="s.saving" t-on-click="() => this.saveMailServer()">Save email server</button>
+                        <button type="button" class="o_sm_set_btn" t-att-disabled="s.saving or !s.email.configured" t-on-click="() => this.sendTestEmail()">Send test email to me</button>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="o_sm_set_save">
+                <span t-if="this.settingsDirty()">You have unsaved changes.</span>
+                <button type="button" class="o_sm_set_btn" t-att-disabled="s.saving or !this.settingsDirty()" t-on-click="() => { s.draft = { ...s.values }; }">Undo</button>
+                <button type="button" class="o_sm_set_btn is-primary" t-att-disabled="s.saving or !this.settingsDirty()" t-on-click="() => this.saveSettings()">Save settings</button>
+            </footer>
+        </div>
+    </t>
+
+    <t t-name="strategic_management.MySettingsPanel">
+        <t t-set="m" t-value="this.state.mySettings"/>
+        <p t-if="this.state.settingsError" class="o_sm_br_notice is-error" role="alert" t-esc="this.state.settingsError"/>
+        <p t-elif="!m" class="o_sm_br_notice">Loading your settings…</p>
+        <div t-else="" class="o_sm_set">
+            <section class="o_sm_set_card" aria-labelledby="o_sm_my_account">
+                <header><h2 id="o_sm_my_account">My account</h2><p>Signed in as <strong t-esc="m.name"/> (<t t-esc="m.login"/>).</p></header>
+                <div class="o_sm_set_fields">
+                    <div class="o_sm_set_row">
+                        <label>Email<input type="email" t-att-value="m.draft.email" t-on-input="(ev) => { m.draft.email = ev.target.value; }"/></label>
+                        <label>Phone<input type="tel" t-att-value="m.draft.phone" t-on-input="(ev) => { m.draft.phone = ev.target.value; }"/></label>
+                    </div>
+                    <label>Time zone<select t-on-change="(ev) => { m.draft.tz = ev.target.value; }">
+                        <option value="">—</option>
+                        <option t-foreach="m.timezones" t-as="tz" t-key="tz" t-att-value="tz" t-att-selected="tz === m.draft.tz" t-esc="tz"/>
+                    </select></label>
+                </div>
+            </section>
+            <section class="o_sm_set_card" aria-labelledby="o_sm_my_notifications">
+                <header><h2 id="o_sm_my_notifications">Notifications</h2><p>Tasks, reminders, report reviews and messages always appear in the app.</p></header>
+                <div class="o_sm_set_item">
+                    <div><strong>Also email them to me</strong><small t-if="m.email_ready">Sent to the email address above.</small><small t-else="">Email isn't set up by Head Office yet; until then they stay in the app.</small></div>
+                    <button type="button" role="switch" t-att-aria-checked="m.draft.notify_by_email ? 'true' : 'false'" aria-label="Also email them to me"
+                            t-att-class="'o_sm_set_switch' + (m.draft.notify_by_email ? ' is-on' : '')" t-on-click="() => { m.draft.notify_by_email = !m.draft.notify_by_email; }">
+                        <span/><em t-esc="m.draft.notify_by_email ? 'On' : 'Off'"/>
+                    </button>
+                </div>
+            </section>
+            <section class="o_sm_set_card" aria-labelledby="o_sm_my_password">
+                <header><h2 id="o_sm_my_password">Password</h2><p>You are asked for your current password first.</p></header>
+                <div><button type="button" class="o_sm_set_btn" t-on-click="() => this.changeMyPassword()">Change password</button></div>
+            </section>
+            <footer class="o_sm_set_save">
+                <button type="button" class="o_sm_set_btn is-primary" t-att-disabled="m.saving" t-on-click="() => this.saveMySettings()">Save</button>
+            </footer>
+        </div>
+    </t>
+
+    <t t-name="strategic_management.SettingsSwitch">
+        <t t-set="s" t-value="this.state.settings"/>
+        <div class="o_sm_set_item">
+            <div><strong t-esc="label"/><small t-esc="hint"/></div>
+            <button type="button" role="switch" t-att-aria-checked="s.draft[key] ? 'true' : 'false'" t-att-aria-label="label"
+                    t-att-class="'o_sm_set_switch' + (s.draft[key] ? ' is-on' : '')" t-on-click="() => { s.draft[key] = !s.draft[key]; }">
+                <span/><em t-esc="s.draft[key] ? 'On' : 'Off'"/>
+            </button>
+        </div>
+    </t>
+
+    <t t-name="strategic_management.SettingsNumber">
+        <t t-set="s" t-value="this.state.settings"/>
+        <div t-att-class="'o_sm_set_item is-number' + (off ? ' is-off' : '')">
+            <label t-att-for="'o_sm_set_' + key" t-esc="label"/>
+            <span class="o_sm_set_number"><input t-att-id="'o_sm_set_' + key" type="number" t-att-min="min" t-att-max="max" t-att-disabled="off"
+                       t-att-value="s.draft[key]" t-on-input="(ev) => { s.draft[key] = ev.target.value; }"/><span t-esc="unit"/></span>
+        </div>
+    </t>
+</templates>
